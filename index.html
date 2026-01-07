@@ -205,9 +205,24 @@
         const container = document.getElementById('educandosContainer');
         if (!turma) { container.innerHTML = '<div class="empty-state">Selecione uma turma acima.</div>'; return; }
         const lista = dados.educandos.filter(e => e.turma === turma);
+        
+        if(lista.length === 0) {
+            container.innerHTML = '<div class="empty-state">Nenhum aluno cadastrado nesta turma.</div>';
+            return;
+        }
+        
         container.innerHTML = lista.map(edu => `
             <div class="educando-row">
-                <div style="display:flex; justify-content:space-between; margin-bottom:10px"><strong>${edu.nome}</strong><button class="btn btn-danger btn-small" onclick="remover('${edu.id}')">Excluir</button></div>
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-wrap:wrap; gap:10px;">
+                    <strong style="flex-grow:1;">${edu.nome}</strong>
+                    <div style="display:flex; gap:10px; align-items:center;">
+                        <select onchange="mudarTurmaEducando('${edu.id}', this.value)" style="padding:5px 10px; font-size:0.9em;">
+                            <option value="">Mover para turma...</option>
+                            ${dados.turmas.filter(t => t !== turma).map(t => `<option value="${t}">${t}</option>`).join('')}
+                        </select>
+                        <button class="btn btn-danger btn-small" onclick="remover('${edu.id}')">Excluir</button>
+                    </div>
+                </div>
                 <div style="overflow-x:auto">
                     <table>
                         <thead><tr><th>Critério</th>${ETAPAS.map(et => `<th>${et}</th>`).join('')}</tr></thead>
@@ -359,6 +374,26 @@
             atualizarFiltrosTurma(); 
             atualizarListaEducandos();
             atualizarVisaoGeral();
+        }
+    }
+
+    function mudarTurmaEducando(id, novaTurma) {
+        if(!novaTurma) return;
+        
+        const educando = dados.educandos.find(e => e.id === id);
+        if(!educando) return;
+        
+        const turmaAntiga = educando.turma;
+        
+        if(confirm(`Mover "${educando.nome}" de "${turmaAntiga}" para "${novaTurma}"?`)) {
+            educando.turma = novaTurma;
+            salvar();
+            atualizarListaEducandos();
+            atualizarVisaoGeral();
+            alert(`✓ Aluno movido com sucesso para ${novaTurma}!`);
+        } else {
+            // Reseta o select se cancelar
+            atualizarListaEducandos();
         }
     }
 

@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Projeto Crescendo Juntos - Sistema Estabilizado</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
         :root {
             --primary: #f97316;
@@ -84,8 +85,8 @@
                 <button class="btn btn-primary" onclick="document.getElementById('fileInputBackup').click()">💾 Importar Backup</button>
                 <button class="btn btn-success" onclick="exportarBackup()">Exportar Backup</button>
                 <button class="btn btn-danger btn-small" onclick="logout()">Sair</button>
-                <input type="file" id="fileInputLista" accept=".csv" style="display:none" onchange="processarListaAlunos(this)">
-                <input type="file" id="fileInputBackup" accept=".csv" style="display:none" onchange="processarBackup(this)">
+                <input type="file" id="fileInputLista" accept=".csv,.xls,.xlsx" style="display:none" onchange="processarListaAlunos(this)">
+                <input type="file" id="fileInputBackup" accept=".csv,.xls,.xlsx" style="display:none" onchange="processarBackup(this)">
             </div>
         </header>
 
@@ -285,82 +286,188 @@
     }
 
     function processarListaAlunos(input) {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            const linhas = e.target.result.split('\n').filter(l => l.trim());
-            if(linhas.length === 0) {
-                alert("Arquivo vazio!");
-                return;
-            }
-            
-            // Verifica se tem cabeçalho NOME;TURMA
-            const primeiraLinha = linhas[0].toUpperCase();
-            const temCabecalho = primeiraLinha.includes('NOME') && primeiraLinha.includes('TURMA');
-            const inicio = temCabecalho ? 1 : 0;
-            
-            let adicionados = 0;
-            linhas.slice(inicio).forEach(linha => {
-                const partes = linha.split(';').map(p => p.trim());
-                if(partes.length >= 2 && partes[0] && partes[1]) {
-                    const nome = partes[0];
-                    const turma = partes[1];
-                    const id = "ID" + Date.now() + "_" + Math.random().toString(36).substr(2, 9);
+        const file = input.files[0];
+        if(!file) return;
+        
+        const nomeArquivo = file.name.toLowerCase();
+        const isExcel = nomeArquivo.endsWith('.xls') || nomeArquivo.endsWith('.xlsx');
+        
+        if(isExcel) {
+            // Processa Excel
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const primeiraAba = workbook.Sheets[workbook.SheetNames[0]];
+                    const linhas = XLSX.utils.sheet_to_json(primeiraAba, { header: 1 });
                     
-                    // Adiciona o aluno
-                    dados.educandos.push({id, nome, turma});
+                    if(linhas.length === 0) {
+                        alert("Arquivo vazio!");
+                        return;
+                    }
                     
-                    // Adiciona turma se não existir
-                    if(!dados.turmas.includes(turma)) dados.turmas.push(turma);
+                    // Verifica se tem cabeçalho
+                    const primeiraLinha = linhas[0].map(c => String(c).toUpperCase());
+                    const temCabecalho = primeiraLinha.some(c => c.includes('NOME')) && primeiraLinha.some(c => c.includes('TURMA'));
+                    const inicio = temCabecalho ? 1 : 0;
                     
-                    // Inicializa avaliações vazias
-                    dados.avaliacoes[id] = { 'Diagnóstica':{}, 'Processo':{}, 'Final':{} };
-                    adicionados++;
+                    let adicionados = 0;
+                    linhas.slice(inicio).forEach(linha => {
+                        if(linha.length >= 2 && linha[0] && linha[1]) {
+                            const nome = String(linha[0]).trim();
+                            const turma = String(linha[1]).trim();
+                            
+                            if(nome && turma) {
+                                const id = "ID" + Date.now() + "_" + Math.random().toString(36).substr(2, 9);
+                                dados.educandos.push({id, nome, turma});
+                                if(!dados.turmas.includes(turma)) dados.turmas.push(turma);
+                                dados.avaliacoes[id] = { 'Diagnóstica':{}, 'Processo':{}, 'Final':{} };
+                                adicionados++;
+                            }
+                        }
+                    });
+                    
+                    if(adicionados > 0) {
+                        salvar(); 
+                        atualizarFiltrosTurma();
+                        atualizarAbaAtiva();
+                        alert(`✓ ${adicionados} aluno${adicionados !== 1 ? 's' : ''} importado${adicionados !== 1 ? 's' : ''} com sucesso!`);
+                    } else {
+                        alert("Nenhum aluno válido encontrado no arquivo.\n\nFormato esperado:\nColuna A: NOME\nColuna B: TURMA");
+                    }
+                } catch(erro) {
+                    alert("Erro ao processar arquivo Excel: " + erro.message);
                 }
-            });
-            
-            if(adicionados > 0) {
-                salvar(); 
-                atualizarFiltrosTurma();
-                atualizarAbaAtiva();
-                alert(`${adicionados} aluno${adicionados !== 1 ? 's' : ''} importado${adicionados !== 1 ? 's' : ''} com sucesso!`);
-            } else {
-                alert("Nenhum aluno válido encontrado no arquivo.\n\nFormato esperado:\nNOME;TURMA\nJoão Silva;3º Ano A\nMaria Santos;3º Ano A");
-            }
-        };
-        reader.readAsText(input.files[0]);
-        input.value = ''; // Limpa o input para permitir reimportar o mesmo arquivo
+            };
+            reader.readAsArrayBuffer(file);
+        } else {
+            // Processa CSV
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const linhas = e.target.result.split('\n').filter(l => l.trim());
+                if(linhas.length === 0) {
+                    alert("Arquivo vazio!");
+                    return;
+                }
+                
+                const primeiraLinha = linhas[0].toUpperCase();
+                const temCabecalho = primeiraLinha.includes('NOME') && primeiraLinha.includes('TURMA');
+                const inicio = temCabecalho ? 1 : 0;
+                
+                let adicionados = 0;
+                linhas.slice(inicio).forEach(linha => {
+                    const partes = linha.split(';').map(p => p.trim());
+                    if(partes.length >= 2 && partes[0] && partes[1]) {
+                        const nome = partes[0];
+                        const turma = partes[1];
+                        const id = "ID" + Date.now() + "_" + Math.random().toString(36).substr(2, 9);
+                        
+                        dados.educandos.push({id, nome, turma});
+                        if(!dados.turmas.includes(turma)) dados.turmas.push(turma);
+                        dados.avaliacoes[id] = { 'Diagnóstica':{}, 'Processo':{}, 'Final':{} };
+                        adicionados++;
+                    }
+                });
+                
+                if(adicionados > 0) {
+                    salvar(); 
+                    atualizarFiltrosTurma();
+                    atualizarAbaAtiva();
+                    alert(`✓ ${adicionados} aluno${adicionados !== 1 ? 's' : ''} importado${adicionados !== 1 ? 's' : ''} com sucesso!`);
+                } else {
+                    alert("Nenhum aluno válido encontrado no arquivo.\n\nFormato esperado:\nNOME;TURMA\nJoão Silva;3º Ano A");
+                }
+            };
+            reader.readAsText(file);
+        }
+        input.value = '';
     }
 
     function processarBackup(input) {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            const linhas = e.target.result.split('\n').filter(l => l.trim());
-            if(linhas.length > 0 && linhas[0].toUpperCase().includes('ETAPA')) {
-                dados = { educandos: [], turmas: [], avaliacoes: {} };
-                linhas.slice(1).forEach(l => {
-                    const p = l.split(';');
-                    if(p.length > 3 && !dados.avaliacoes[p[0]]) {
-                        dados.educandos.push({id:p[0], nome:p[1], turma:p[2]});
-                        if(!dados.turmas.includes(p[2])) dados.turmas.push(p[2]);
-                        dados.avaliacoes[p[0]] = { 'Diagnóstica':{}, 'Processo':{}, 'Final':{} };
-                    }
-                    if(p.length > 3) {
-                        INDICADORES.forEach((ind, i) => {
-                            if(!dados.avaliacoes[p[0]][p[3]]) dados.avaliacoes[p[0]][p[3]] = {};
-                            dados.avaliacoes[p[0]][p[3]][ind] = parseInt(p[i+4]) || 0;
+        const file = input.files[0];
+        if(!file) return;
+        
+        const nomeArquivo = file.name.toLowerCase();
+        const isExcel = nomeArquivo.endsWith('.xls') || nomeArquivo.endsWith('.xlsx');
+        
+        if(isExcel) {
+            // Processa Excel
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const primeiraAba = workbook.Sheets[workbook.SheetNames[0]];
+                    const linhas = XLSX.utils.sheet_to_json(primeiraAba, { header: 1 });
+                    
+                    if(linhas.length > 0 && linhas[0].some(c => String(c).toUpperCase().includes('ETAPA'))) {
+                        dados = { educandos: [], turmas: [], avaliacoes: {} };
+                        
+                        linhas.slice(1).forEach(linha => {
+                            if(linha.length > 3) {
+                                const id = String(linha[0]);
+                                const nome = String(linha[1]);
+                                const turma = String(linha[2]);
+                                const etapa = String(linha[3]);
+                                
+                                if(!dados.avaliacoes[id]) {
+                                    dados.educandos.push({id, nome, turma});
+                                    if(!dados.turmas.includes(turma)) dados.turmas.push(turma);
+                                    dados.avaliacoes[id] = { 'Diagnóstica':{}, 'Processo':{}, 'Final':{} };
+                                }
+                                
+                                if(!dados.avaliacoes[id][etapa]) dados.avaliacoes[id][etapa] = {};
+                                INDICADORES.forEach((ind, i) => {
+                                    dados.avaliacoes[id][etapa][ind] = parseInt(linha[i+4]) || 0;
+                                });
+                            }
                         });
+                        
+                        salvar(); 
+                        atualizarFiltrosTurma();
+                        atualizarAbaAtiva();
+                        alert("✓ Backup importado com sucesso!");
+                    } else {
+                        alert("Arquivo de backup inválido!");
                     }
-                });
-                salvar(); 
-                atualizarFiltrosTurma();
-                atualizarAbaAtiva();
-                alert("Backup importado com sucesso!");
-            } else {
-                alert("Arquivo de backup inválido!");
-            }
-        };
-        reader.readAsText(input.files[0]);
-        input.value = ''; // Limpa o input
+                } catch(erro) {
+                    alert("Erro ao processar arquivo Excel: " + erro.message);
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        } else {
+            // Processa CSV
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const linhas = e.target.result.split('\n').filter(l => l.trim());
+                if(linhas.length > 0 && linhas[0].toUpperCase().includes('ETAPA')) {
+                    dados = { educandos: [], turmas: [], avaliacoes: {} };
+                    linhas.slice(1).forEach(l => {
+                        const p = l.split(';');
+                        if(p.length > 3 && !dados.avaliacoes[p[0]]) {
+                            dados.educandos.push({id:p[0], nome:p[1], turma:p[2]});
+                            if(!dados.turmas.includes(p[2])) dados.turmas.push(p[2]);
+                            dados.avaliacoes[p[0]] = { 'Diagnóstica':{}, 'Processo':{}, 'Final':{} };
+                        }
+                        if(p.length > 3) {
+                            INDICADORES.forEach((ind, i) => {
+                                if(!dados.avaliacoes[p[0]][p[3]]) dados.avaliacoes[p[0]][p[3]] = {};
+                                dados.avaliacoes[p[0]][p[3]][ind] = parseInt(p[i+4]) || 0;
+                            });
+                        }
+                    });
+                    salvar(); 
+                    atualizarFiltrosTurma();
+                    atualizarAbaAtiva();
+                    alert("✓ Backup importado com sucesso!");
+                } else {
+                    alert("Arquivo de backup inválido!");
+                }
+            };
+            reader.readAsText(file);
+        }
+        input.value = '';
     }
 
     function adicionarEducando() {

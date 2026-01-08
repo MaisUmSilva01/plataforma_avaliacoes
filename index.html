@@ -7,6 +7,7 @@
     <title>Projeto Crescendo Juntos - Sistema Estabilizado</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <style>
         :root {
             --primary: #f97316;
@@ -70,9 +71,44 @@
         .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
         .modal-close { cursor: pointer; font-size: 24px; color: #6b7280; }
         .turma-item { display: flex; justify-content: space-between; align-items: center; padding: 12px; background: #f9fafb; border-radius: 8px; margin-bottom: 10px; }
+        
+        /* Sistema de Notificações */
+        .notification-container { position: fixed; top: 20px; right: 20px; z-index: 10001; display: flex; flex-direction: column; gap: 10px; max-width: 400px; }
+        .notification { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); display: flex; align-items: start; gap: 15px; animation: slideIn 0.3s ease; border-left: 4px solid #10b981; }
+        .notification.success { border-left-color: #10b981; }
+        .notification.error { border-left-color: #ef4444; }
+        .notification.warning { border-left-color: #f59e0b; }
+        .notification.info { border-left-color: #3b82f6; }
+        .notification-icon { font-size: 24px; }
+        .notification-content { flex: 1; }
+        .notification-title { font-weight: 600; margin-bottom: 5px; color: #1f2937; }
+        .notification-message { color: #6b7280; font-size: 0.9em; }
+        .notification-close { cursor: pointer; color: #9ca3af; font-size: 20px; line-height: 1; }
+        @keyframes slideIn { from { transform: translateX(400px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        
+        /* Modal de Confirmação */
+        .confirm-modal .modal-content { max-width: 450px; text-align: center; }
+        .confirm-buttons { display: flex; gap: 10px; margin-top: 20px; }
+        .confirm-buttons button { flex: 1; }
     </style>
 </head>
 <body>
+
+<!-- Container de Notificações -->
+<div id="notificationContainer" class="notification-container"></div>
+
+<!-- Modal de Confirmação -->
+<div id="modalConfirm" class="modal confirm-modal">
+    <div class="modal-content">
+        <div id="confirmIcon" style="font-size: 48px; margin-bottom: 15px;">⚠️</div>
+        <h3 id="confirmTitle" style="margin-bottom: 10px;">Confirmação</h3>
+        <p id="confirmMessage" style="color: #6b7280; margin-bottom: 20px;">Deseja continuar?</p>
+        <div class="confirm-buttons">
+            <button class="btn btn-danger" onclick="confirmarAcao(false)">Cancelar</button>
+            <button class="btn btn-primary" onclick="confirmarAcao(true)">Confirmar</button>
+        </div>
+    </div>
+</div>
 
 <div id="login-screen">
     <div class="login-card">
@@ -137,14 +173,15 @@
                         </div>
                     </div>
                     
-                    <div style="display: flex; gap: 10px; align-items: center;">
-                        <select id="tipoGrafico" onchange="atualizarGrafico()" style="flex: 1;">
+                    <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                        <select id="tipoGrafico" onchange="atualizarGrafico()" style="flex: 1; min-width: 150px;">
                             <option value="bar">Gráfico de Barras</option>
                             <option value="radar">Gráfico Radar</option>
                             <option value="line">Gráfico de Linhas</option>
                         </select>
                         <button class="btn btn-primary" onclick="selecionarTodasTurmas()">Todas as Turmas</button>
                         <button class="btn btn-danger btn-small" onclick="limparSelecaoTurmas()">Limpar</button>
+                        <button class="btn btn-success" onclick="abrirModalExportar()">📥 Exportar Gráfico</button>
                     </div>
                 </div>
                 
@@ -196,8 +233,89 @@
     </div>
 </div>
 
+<!-- Modal de Exportação de Gráfico -->
+<div id="modalExportar" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>📥 Exportar Gráfico</h2>
+            <span class="modal-close" onclick="fecharModalExportar()">&times;</span>
+        </div>
+        
+        <p style="color: #6b7280; margin-bottom: 20px;">Escolha o formato para exportar o gráfico atual:</p>
+        
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+            <button class="btn btn-primary" style="width: 100%; justify-content: center;" onclick="exportarGrafico('png')">
+                🖼️ Exportar como PNG (Alta Qualidade)
+            </button>
+            <button class="btn btn-primary" style="width: 100%; justify-content: center;" onclick="exportarGrafico('jpg')">
+                📷 Exportar como JPG (Compacto)
+            </button>
+            <button class="btn btn-success" style="width: 100%; justify-content: center;" onclick="exportarGrafico('pdf')">
+                📄 Exportar como PDF (Documento)
+            </button>
+        </div>
+        
+        <div style="margin-top: 20px; padding: 15px; background: #fef3c7; border-radius: 8px; border: 1px solid #fbbf24;">
+            <p style="font-size: 0.9em; color: #92400e;">
+                <strong>💡 Dica:</strong> O gráfico será exportado exatamente como está sendo visualizado no momento.
+            </p>
+        </div>
+    </div>
+</div>
+
 <script>
-    const CHAVE_MESTRA = "Z2lyYXNzb2xfMTIz"; 
+    const CHAVE_MESTRA = "Z2lyYXNzb2xfMTIz";
+    
+    // Sistema de Notificações
+    let confirmCallback = null;
+    
+    function mostrarNotificacao(titulo, mensagem, tipo = 'success') {
+        const container = document.getElementById('notificationContainer');
+        const notification = document.createElement('div');
+        notification.className = `notification ${tipo}`;
+        
+        const icones = {
+            success: '✓',
+            error: '✕',
+            warning: '⚠️',
+            info: 'ℹ️'
+        };
+        
+        notification.innerHTML = `
+            <div class="notification-icon">${icones[tipo]}</div>
+            <div class="notification-content">
+                <div class="notification-title">${titulo}</div>
+                <div class="notification-message">${mensagem}</div>
+            </div>
+            <span class="notification-close" onclick="this.parentElement.remove()">×</span>
+        `;
+        
+        container.appendChild(notification);
+        
+        setTimeout(() => {
+            notification.style.animation = 'slideIn 0.3s ease reverse';
+            setTimeout(() => notification.remove(), 300);
+        }, 5000);
+    }
+    
+    function confirmar(titulo, mensagem, icone = '⚠️') {
+        return new Promise((resolve) => {
+            document.getElementById('confirmIcon').textContent = icone;
+            document.getElementById('confirmTitle').textContent = titulo;
+            document.getElementById('confirmMessage').textContent = mensagem;
+            document.getElementById('modalConfirm').classList.add('active');
+            
+            confirmCallback = resolve;
+        });
+    }
+    
+    function confirmarAcao(resultado) {
+        document.getElementById('modalConfirm').classList.remove('active');
+        if(confirmCallback) {
+            confirmCallback(resultado);
+            confirmCallback = null;
+        }
+    }
 
     function handleLogin() {
         const campo = document.getElementById('access-key');
@@ -762,12 +880,12 @@
         const nomeTurma = input.value.trim();
         
         if(!nomeTurma) {
-            alert("Digite o nome da turma!");
+            mostrarNotificacao('Aviso', 'Digite o nome da turma!', 'warning');
             return;
         }
         
         if(dados.turmas.includes(nomeTurma)) {
-            alert("Esta turma já existe!");
+            mostrarNotificacao('Aviso', 'Esta turma já existe!', 'warning');
             return;
         }
         
@@ -777,35 +895,152 @@
         atualizarListaTurmasModal();
         atualizarFiltrosTurma();
         atualizarCheckboxesTurmas();
-        alert(`✓ Turma "${nomeTurma}" criada com sucesso!`);
+        mostrarNotificacao('Turma Criada', `Turma "${nomeTurma}" criada com sucesso!`, 'success');
     }
 
-    function excluirTurma(turma) {
+    async function excluirTurma(turma) {
         const qtdAlunos = dados.educandos.filter(e => e.turma === turma).length;
         
         if(qtdAlunos > 0) {
-            alert(`Não é possível excluir a turma "${turma}" pois ela possui ${qtdAlunos} aluno${qtdAlunos !== 1 ? 's' : ''} cadastrado${qtdAlunos !== 1 ? 's' : ''}!`);
+            mostrarNotificacao('Não Permitido', `Não é possível excluir a turma "${turma}" pois ela possui ${qtdAlunos} aluno${qtdAlunos !== 1 ? 's' : ''} cadastrado${qtdAlunos !== 1 ? 's' : ''}!`, 'error');
             return;
         }
         
-        if(confirm(`Excluir a turma "${turma}"?`)) {
+        const confirmado = await confirmar('Excluir Turma', `Tem certeza que deseja excluir a turma "${turma}"?`, '🗑️');
+        
+        if(confirmado) {
             dados.turmas = dados.turmas.filter(t => t !== turma);
             salvar();
             atualizarListaTurmasModal();
             atualizarFiltrosTurma();
             atualizarCheckboxesTurmas();
             atualizarVisaoGeral();
-            alert(`✓ Turma "${turma}" excluída com sucesso!`);
+            mostrarNotificacao('Turma Excluída', `Turma "${turma}" excluída com sucesso!`, 'success');
         }
     }
 
     // Fecha modal ao clicar fora
     document.addEventListener('click', function(e) {
-        const modal = document.getElementById('modalTurmas');
-        if(e.target === modal) {
+        const modalTurmas = document.getElementById('modalTurmas');
+        const modalExportar = document.getElementById('modalExportar');
+        if(e.target === modalTurmas) {
             fecharModalTurmas();
         }
+        if(e.target === modalExportar) {
+            fecharModalExportar();
+        }
     });
+
+    function abrirModalExportar() {
+        if(!graficoInstance) {
+            mostrarNotificacao('Aviso', 'Nenhum gráfico para exportar. Configure e visualize um gráfico primeiro.', 'warning');
+            return;
+        }
+        document.getElementById('modalExportar').classList.add('active');
+    }
+
+    function fecharModalExportar() {
+        document.getElementById('modalExportar').classList.remove('active');
+    }
+
+    function exportarGrafico(formato) {
+        if(!graficoInstance) {
+            mostrarNotificacao('Erro', 'Nenhum gráfico para exportar!', 'error');
+            return;
+        }
+
+        const canvas = document.getElementById('graficoIndicadores');
+        const dataAtual = new Date().toISOString().split('T')[0];
+        const nomeArquivo = `grafico_crescendo_juntos_${dataAtual}`;
+
+        try {
+            if(formato === 'png') {
+                // Exportar como PNG
+                canvas.toBlob(function(blob) {
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `${nomeArquivo}.png`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                    fecharModalExportar();
+                    mostrarNotificacao('Exportação Concluída', 'Gráfico exportado como PNG com sucesso!', 'success');
+                });
+            } else if(formato === 'jpg') {
+                // Exportar como JPG com fundo branco
+                const tempCanvas = document.createElement('canvas');
+                tempCanvas.width = canvas.width;
+                tempCanvas.height = canvas.height;
+                const tempCtx = tempCanvas.getContext('2d');
+                
+                // Preenche com branco
+                tempCtx.fillStyle = '#FFFFFF';
+                tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+                
+                // Desenha o gráfico por cima
+                tempCtx.drawImage(canvas, 0, 0);
+                
+                tempCanvas.toBlob(function(blob) {
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `${nomeArquivo}.jpg`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                    fecharModalExportar();
+                    mostrarNotificacao('Exportação Concluída', 'Gráfico exportado como JPG com sucesso!', 'success');
+                }, 'image/jpeg', 0.95);
+            } else if(formato === 'pdf') {
+                // Exportar como PDF
+                const imgData = canvas.toDataURL('image/png');
+                const { jsPDF } = window.jspdf;
+                
+                // Cria PDF em paisagem para melhor visualização
+                const pdf = new jsPDF({
+                    orientation: 'landscape',
+                    unit: 'mm',
+                    format: 'a4'
+                });
+
+                // Dimensões do PDF A4 em paisagem
+                const pdfWidth = pdf.internal.pageSize.getWidth();
+                const pdfHeight = pdf.internal.pageSize.getHeight();
+                
+                // Calcula dimensões mantendo proporção
+                const canvasRatio = canvas.width / canvas.height;
+                let imgWidth = pdfWidth - 20; // margem de 10mm em cada lado
+                let imgHeight = imgWidth / canvasRatio;
+                
+                // Se a altura ultrapassar a página, ajusta
+                if(imgHeight > pdfHeight - 40) {
+                    imgHeight = pdfHeight - 40;
+                    imgWidth = imgHeight * canvasRatio;
+                }
+
+                const x = (pdfWidth - imgWidth) / 2;
+                const y = 20;
+
+                // Adiciona título
+                pdf.setFontSize(16);
+                pdf.text('Crescendo Juntos - Análise de Evolução Pedagógica', pdfWidth / 2, 12, { align: 'center' });
+                
+                // Adiciona o gráfico
+                pdf.addImage(imgData, 'PNG', x, y, imgWidth, imgHeight);
+                
+                // Adiciona data no rodapé
+                pdf.setFontSize(10);
+                pdf.text(`Gerado em: ${new Date().toLocaleDateString('pt-BR')}`, pdfWidth / 2, pdfHeight - 10, { align: 'center' });
+                
+                // Salva o PDF
+                pdf.save(`${nomeArquivo}.pdf`);
+                fecharModalExportar();
+                mostrarNotificacao('Exportação Concluída', 'Gráfico exportado como PDF com sucesso!', 'success');
+            }
+        } catch(erro) {
+            mostrarNotificacao('Erro na Exportação', erro.message, 'error');
+            console.error(erro);
+        }
+    }
 
     function limparTudo() { 
         if(confirm("⚠️ ATENÇÃO: Isso vai apagar TODOS os dados do sistema!\n\nDeseja continuar?")) { 

@@ -62,6 +62,14 @@
         select { padding: 8px; border-radius: 8px; border: 2px solid #e5e7eb; outline-color: var(--primary); background: white; }
         .chart-container { position: relative; height: 450px; width: 100%; }
         .empty-state { text-align: center; padding: 40px; color: #9ca3af; font-style: italic; }
+        
+        /* Modal */
+        .modal { display: none; position: fixed; z-index: 10000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); justify-content: center; align-items: center; }
+        .modal.active { display: flex; }
+        .modal-content { background: white; padding: 30px; border-radius: 15px; max-width: 500px; width: 90%; max-height: 80vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.3); }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .modal-close { cursor: pointer; font-size: 24px; color: #6b7280; }
+        .turma-item { display: flex; justify-content: space-between; align-items: center; padding: 12px; background: #f9fafb; border-radius: 8px; margin-bottom: 10px; }
     </style>
 </head>
 <body>
@@ -97,19 +105,49 @@
 
         <div id="visao-geral" class="tab-content active">
             <div class="card">
-                <div style="display:flex; justify-content:space-between; margin-bottom:20px; flex-wrap:wrap; gap:10px;">
-                    <select class="filtro-turma" onchange="atualizarGrafico()"></select>
-                    <select id="modoAnalise" onchange="atualizarGrafico()">
-                        <option value="individual">Etapa única</option>
-                        <option value="diag_proc">Diagnóstica x Processo</option>
-                        <option value="proc_final">Processo x Final</option>
-                        <option value="diag_final">Diagnóstica x Final</option>
-                    </select>
-                    <select id="tipoGrafico" onchange="atualizarGrafico()">
-                        <option value="bar">Gráfico de Barras</option>
-                        <option value="radar">Gráfico Radar</option>
-                    </select>
+                <h3 style="margin-bottom: 20px;">⚙️ Configuração de Comparação</h3>
+                
+                <div style="background: #f9fafb; padding: 20px; border-radius: 10px; margin-bottom: 20px;">
+                    <div style="margin-bottom: 20px;">
+                        <label style="display: block; font-weight: 600; margin-bottom: 10px; color: #374151;">
+                            📊 Selecione as Turmas (até 4):
+                        </label>
+                        <div id="checkboxTurmas" style="display: flex; flex-wrap: wrap; gap: 15px;">
+                            <!-- Será preenchido dinamicamente -->
+                        </div>
+                    </div>
+                    
+                    <div style="margin-bottom: 20px;">
+                        <label style="display: block; font-weight: 600; margin-bottom: 10px; color: #374151;">
+                            📅 Selecione as Etapas:
+                        </label>
+                        <div style="display: flex; flex-wrap: wrap; gap: 15px;">
+                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                <input type="checkbox" class="checkbox-etapa" value="Diagnóstica" checked onchange="atualizarGrafico()">
+                                <span>Diagnóstica</span>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                <input type="checkbox" class="checkbox-etapa" value="Processo" onchange="atualizarGrafico()">
+                                <span>Processo</span>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                <input type="checkbox" class="checkbox-etapa" value="Final" onchange="atualizarGrafico()">
+                                <span>Final</span>
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <select id="tipoGrafico" onchange="atualizarGrafico()" style="flex: 1;">
+                            <option value="bar">Gráfico de Barras</option>
+                            <option value="radar">Gráfico Radar</option>
+                            <option value="line">Gráfico de Linhas</option>
+                        </select>
+                        <button class="btn btn-primary" onclick="selecionarTodasTurmas()">Todas as Turmas</button>
+                        <button class="btn btn-danger btn-small" onclick="limparSelecaoTurmas()">Limpar</button>
+                    </div>
                 </div>
+                
                 <div class="chart-container"><canvas id="graficoIndicadores"></canvas></div>
             </div>
             <div class="card">
@@ -125,11 +163,35 @@
                         <label><strong>Filtrar Turma:</strong></label>
                         <select class="filtro-turma" id="turmaAtivaAvaliacao" onchange="atualizarListaEducandos()"></select>
                     </div>
+                    <button class="btn btn-success" onclick="gerenciarTurmas()">📚 Gerenciar Turmas</button>
                     <button class="btn btn-primary" onclick="adicionarEducando()">+ Novo Aluno</button>
                     <button class="btn btn-danger btn-small" onclick="limparTudo()">Resetar Sistema</button>
                 </div>
                 <div id="educandosContainer"></div>
             </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Gerenciamento de Turmas -->
+<div id="modalTurmas" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>📚 Gerenciar Turmas</h2>
+            <span class="modal-close" onclick="fecharModalTurmas()">&times;</span>
+        </div>
+        
+        <div style="margin-bottom: 20px;">
+            <label style="display: block; font-weight: 600; margin-bottom: 10px;">Adicionar Nova Turma:</label>
+            <div style="display: flex; gap: 10px;">
+                <input type="text" id="inputNovaTurma" placeholder="Ex: 3º Ano A" style="flex: 1; padding: 10px; border: 2px solid #e5e7eb; border-radius: 8px;">
+                <button class="btn btn-primary" onclick="adicionarNovaTurma()">Adicionar</button>
+            </div>
+        </div>
+        
+        <div>
+            <label style="display: block; font-weight: 600; margin-bottom: 10px;">Turmas Cadastradas:</label>
+            <div id="listaTurmasModal"></div>
         </div>
     </div>
 </div>
@@ -164,6 +226,7 @@
     const INDICADORES = ['Leitura', 'Escrita', 'Socialização', 'Participação', 'Autonomia', 'Raciocínio Lógico'];
     const ETAPAS = ['Diagnóstica', 'Processo', 'Final'];
     const CORES = { 'Diagnóstica': '#f59e0b', 'Processo': '#3b82f6', 'Final': '#10b981' };
+    const CORES_TURMAS = ['#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316', '#06b6d4'];
     let dados = { educandos: [], turmas: [], avaliacoes: {} };
     let graficoInstance = null;
 
@@ -187,11 +250,25 @@
         atualizarAbaAtiva();
     }
 
+    function atualizarVisaoGeral() {
+        const container = document.getElementById('visaoTurmasContainer');
+        if(!container) return;
+        if(!dados.turmas || dados.turmas.length === 0) {
+            container.innerHTML = '<div class="empty-state">Nenhuma turma cadastrada.</div>';
+            return;
+        }
+        container.innerHTML = dados.turmas.sort().map(t => {
+            const count = dados.educandos.filter(e => e.turma === t).length;
+            return `<div style="display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid #f3f4f6;"><strong>${t}</strong><span>${count} aluno${count !== 1 ? 's' : ''}</span></div>`;
+        }).join('');
+    }
+
     function atualizarAbaAtiva() {
         const abaVisaoGeral = document.getElementById('visao-geral');
         const abaAvaliacoes = document.getElementById('avaliacoes');
 
         if (abaVisaoGeral.classList.contains('active')) {
+            atualizarCheckboxesTurmas();
             atualizarGrafico();
             atualizarVisaoGeral();
         }
@@ -248,32 +325,137 @@
     function atualizarGrafico() {
         const canvas = document.getElementById('graficoIndicadores');
         if (!canvas || !window.Chart) return;
+        
         const ctx = canvas.getContext('2d');
-        const turma = document.querySelector('.filtro-turma').value;
-        const modo = document.getElementById('modoAnalise').value;
-        const etapas = (modo === 'individual' ? ['Diagnóstica'] : modo === 'diag_proc' ? ['Diagnóstica', 'Processo'] : modo === 'proc_final' ? ['Processo', 'Final'] : ['Diagnóstica', 'Final']);
-        const datasets = etapas.map(et => {
-            const medias = INDICADORES.map(ind => {
-                const notas = dados.educandos.filter(e => turma === 'todas' || e.turma === turma).map(e => (dados.avaliacoes[e.id] && dados.avaliacoes[e.id][et]) ? dados.avaliacoes[e.id][et][ind] : 0).filter(n => n > 0);
-                return notas.length ? (notas.reduce((a,b)=>a+b,0)/notas.length).toFixed(2) : 0;
-            });
-            return { label: et, data: medias, borderColor: CORES[et], backgroundColor: hexToRgba(CORES[et], 0.2), fill: true };
-        });
-        if(graficoInstance) graficoInstance.destroy();
-        graficoInstance = new Chart(ctx, { type: document.getElementById('tipoGrafico').value, data: { labels: INDICADORES, datasets }, options: { scales: { y: { beginAtZero: true, max: 4 }, r: { beginAtZero: true, max: 4 } }, maintainAspectRatio: false } });
-    }
-
-    function atualizarVisaoGeral() {
-        const container = document.getElementById('visaoTurmasContainer');
-        if(!container) return;
-        if(!dados.turmas || dados.turmas.length === 0) {
-            container.innerHTML = '<div class="empty-state">Nenhuma turma cadastrada.</div>';
+        
+        // Obtém turmas selecionadas
+        const turmasSelecionadas = Array.from(document.querySelectorAll('.checkbox-turma:checked')).map(cb => cb.value);
+        
+        // Obtém etapas selecionadas
+        const etapasSelecionadas = Array.from(document.querySelectorAll('.checkbox-etapa:checked')).map(cb => cb.value);
+        
+        if(turmasSelecionadas.length === 0) {
+            if(graficoInstance) graficoInstance.destroy();
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.font = '16px sans-serif';
+            ctx.fillStyle = '#9ca3af';
+            ctx.textAlign = 'center';
+            ctx.fillText('Selecione ao menos uma turma', canvas.width/2, canvas.height/2);
             return;
         }
-        container.innerHTML = dados.turmas.sort().map(t => {
-            const count = dados.educandos.filter(e => e.turma === t).length;
-            return `<div style="display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid #f3f4f6;"><strong>${t}</strong><span>${count} aluno${count !== 1 ? 's' : ''}</span></div>`;
-        }).join('');
+        
+        if(etapasSelecionadas.length === 0) {
+            if(graficoInstance) graficoInstance.destroy();
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.font = '16px sans-serif';
+            ctx.fillStyle = '#9ca3af';
+            ctx.textAlign = 'center';
+            ctx.fillText('Selecione ao menos uma etapa', canvas.width/2, canvas.height/2);
+            return;
+        }
+        
+        const datasets = [];
+        let corIndex = 0;
+        
+        // Para cada turma e etapa selecionada, cria um dataset
+        turmasSelecionadas.forEach(turma => {
+            etapasSelecionadas.forEach(etapa => {
+                const medias = INDICADORES.map(ind => {
+                    const notas = dados.educandos
+                        .filter(e => e.turma === turma)
+                        .map(e => (dados.avaliacoes[e.id] && dados.avaliacoes[e.id][etapa]) ? dados.avaliacoes[e.id][etapa][ind] : 0)
+                        .filter(n => n > 0);
+                    return notas.length ? (notas.reduce((a,b)=>a+b,0)/notas.length).toFixed(2) : 0;
+                });
+                
+                const cor = CORES_TURMAS[corIndex % CORES_TURMAS.length];
+                datasets.push({
+                    label: `${turma} - ${etapa}`,
+                    data: medias,
+                    borderColor: cor,
+                    backgroundColor: hexToRgba(cor, 0.2),
+                    fill: true,
+                    tension: 0.3
+                });
+                corIndex++;
+            });
+        });
+        
+        if(graficoInstance) graficoInstance.destroy();
+        graficoInstance = new Chart(ctx, {
+            type: document.getElementById('tipoGrafico').value,
+            data: { labels: INDICADORES, datasets },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: { beginAtZero: true, max: 4 },
+                    r: { beginAtZero: true, max: 4 }
+                },
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'top'
+                    }
+                }
+            }
+        });
+    }
+
+    function atualizarCheckboxesTurmas() {
+        const container = document.getElementById('checkboxTurmas');
+        if(!container) return;
+        
+        if(dados.turmas.length === 0) {
+            container.innerHTML = '<p style="color: #9ca3af; font-style: italic;">Nenhuma turma cadastrada</p>';
+            return;
+        }
+        
+        container.innerHTML = dados.turmas.sort().map(turma => `
+            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; background: white; padding: 8px 12px; border-radius: 8px; border: 2px solid #e5e7eb;">
+                <input type="checkbox" class="checkbox-turma" value="${turma}" onchange="validarSelecaoTurmas(); atualizarGrafico()">
+                <span>${turma}</span>
+            </label>
+        `).join('');
+        
+        // Seleciona a primeira turma por padrão se houver
+        if(dados.turmas.length > 0) {
+            const primeiro = container.querySelector('.checkbox-turma');
+            if(primeiro) primeiro.checked = true;
+        }
+    }
+
+    function validarSelecaoTurmas() {
+        const checkboxes = document.querySelectorAll('.checkbox-turma');
+        const selecionados = Array.from(checkboxes).filter(cb => cb.checked);
+        
+        if(selecionados.length >= 4) {
+            checkboxes.forEach(cb => {
+                if(!cb.checked) cb.disabled = true;
+            });
+        } else {
+            checkboxes.forEach(cb => cb.disabled = false);
+        }
+    }
+
+    function selecionarTodasTurmas() {
+        const checkboxes = document.querySelectorAll('.checkbox-turma');
+        const quantidadeMaxima = Math.min(checkboxes.length, 4);
+        
+        checkboxes.forEach((cb, index) => {
+            cb.checked = index < quantidadeMaxima;
+        });
+        
+        validarSelecaoTurmas();
+        atualizarGrafico();
+    }
+
+    function limparSelecaoTurmas() {
+        document.querySelectorAll('.checkbox-turma').forEach(cb => {
+            cb.checked = false;
+            cb.disabled = false;
+        });
+        atualizarGrafico();
     }
 
     function exportarBackup() {
@@ -471,16 +653,44 @@
     }
 
     function adicionarEducando() {
-        const n = prompt("Nome do Aluno:"), t = prompt("Turma:");
-        if(n && t) {
+        const nome = prompt("Nome do Aluno:");
+        if(!nome) return;
+        
+        let turma = '';
+        
+        if(dados.turmas.length > 0) {
+            const opcao = confirm(`Deseja adicionar "${nome}" em uma turma existente?\n\nClique OK para escolher uma turma existente\nClique CANCELAR para criar uma nova turma`);
+            
+            if(opcao) {
+                // Escolher turma existente
+                const listaTurmas = dados.turmas.sort().map((t, i) => `${i+1}. ${t}`).join('\n');
+                const escolha = prompt(`Selecione o número da turma:\n\n${listaTurmas}`);
+                
+                if(escolha && !isNaN(escolha)) {
+                    const index = parseInt(escolha) - 1;
+                    if(index >= 0 && index < dados.turmas.length) {
+                        turma = dados.turmas[index];
+                    }
+                }
+            } else {
+                // Criar nova turma
+                turma = prompt("Nome da nova turma:");
+            }
+        } else {
+            // Não há turmas, criar a primeira
+            turma = prompt("Nome da turma:");
+        }
+        
+        if(turma) {
             const id = "ID" + Date.now();
-            dados.educandos.push({id, nome:n, turma:t});
-            if(!dados.turmas.includes(t)) dados.turmas.push(t);
+            dados.educandos.push({id, nome, turma});
+            if(!dados.turmas.includes(turma)) dados.turmas.push(turma);
             dados.avaliacoes[id] = { 'Diagnóstica':{}, 'Processo':{}, 'Final':{} };
             salvar(); 
             atualizarFiltrosTurma(); 
             atualizarListaEducandos();
             atualizarVisaoGeral();
+            atualizarCheckboxesTurmas();
         }
     }
 
@@ -513,6 +723,89 @@
             atualizarVisaoGeral();
         } 
     }
+
+    function gerenciarTurmas() {
+        document.getElementById('modalTurmas').classList.add('active');
+        atualizarListaTurmasModal();
+    }
+
+    function fecharModalTurmas() {
+        document.getElementById('modalTurmas').classList.remove('active');
+        document.getElementById('inputNovaTurma').value = '';
+    }
+
+    function atualizarListaTurmasModal() {
+        const container = document.getElementById('listaTurmasModal');
+        if(dados.turmas.length === 0) {
+            container.innerHTML = '<p class="empty-state">Nenhuma turma cadastrada</p>';
+            return;
+        }
+        
+        container.innerHTML = dados.turmas.sort().map(turma => {
+            const qtdAlunos = dados.educandos.filter(e => e.turma === turma).length;
+            const temAlunos = qtdAlunos > 0;
+            
+            return `
+                <div class="turma-item">
+                    <div>
+                        <strong>${turma}</strong>
+                        <span style="color: #6b7280; font-size: 0.9em; margin-left: 10px;">(${qtdAlunos} aluno${qtdAlunos !== 1 ? 's' : ''})</span>
+                    </div>
+                    ${!temAlunos ? `<button class="btn btn-danger btn-small" onclick="excluirTurma('${turma}')">Excluir</button>` : '<span style="color: #9ca3af; font-size: 0.85em;">Tem alunos</span>'}
+                </div>
+            `;
+        }).join('');
+    }
+
+    function adicionarNovaTurma() {
+        const input = document.getElementById('inputNovaTurma');
+        const nomeTurma = input.value.trim();
+        
+        if(!nomeTurma) {
+            alert("Digite o nome da turma!");
+            return;
+        }
+        
+        if(dados.turmas.includes(nomeTurma)) {
+            alert("Esta turma já existe!");
+            return;
+        }
+        
+        dados.turmas.push(nomeTurma);
+        salvar();
+        input.value = '';
+        atualizarListaTurmasModal();
+        atualizarFiltrosTurma();
+        atualizarCheckboxesTurmas();
+        alert(`✓ Turma "${nomeTurma}" criada com sucesso!`);
+    }
+
+    function excluirTurma(turma) {
+        const qtdAlunos = dados.educandos.filter(e => e.turma === turma).length;
+        
+        if(qtdAlunos > 0) {
+            alert(`Não é possível excluir a turma "${turma}" pois ela possui ${qtdAlunos} aluno${qtdAlunos !== 1 ? 's' : ''} cadastrado${qtdAlunos !== 1 ? 's' : ''}!`);
+            return;
+        }
+        
+        if(confirm(`Excluir a turma "${turma}"?`)) {
+            dados.turmas = dados.turmas.filter(t => t !== turma);
+            salvar();
+            atualizarListaTurmasModal();
+            atualizarFiltrosTurma();
+            atualizarCheckboxesTurmas();
+            atualizarVisaoGeral();
+            alert(`✓ Turma "${turma}" excluída com sucesso!`);
+        }
+    }
+
+    // Fecha modal ao clicar fora
+    document.addEventListener('click', function(e) {
+        const modal = document.getElementById('modalTurmas');
+        if(e.target === modal) {
+            fecharModalTurmas();
+        }
+    });
 
     function limparTudo() { 
         if(confirm("⚠️ ATENÇÃO: Isso vai apagar TODOS os dados do sistema!\n\nDeseja continuar?")) { 

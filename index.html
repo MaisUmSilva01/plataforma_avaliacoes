@@ -266,6 +266,11 @@
 <script>
     const CHAVE_MESTRA = "Z2lyYXNzb2xfMTIz";
     
+    // Configuração Supabase
+    const SUPABASE_URL = 'https://nlwugowutekyrhybxnil.supabase.co';
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5sd3Vnb3d1dGVreXJoeWJ4bmlsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc4NTM0MzYsImV4cCI6MjA4MzQyOTQzNn0.ebKFq1SMeOZqO4SJCcec8zfrarmzWoiwEetEc_BQFyQ';
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    
     // Sistema de Notificações
     let confirmCallback = null;
     
@@ -342,23 +347,80 @@
     }
 
     const INDICADORES = ['Leitura', 'Escrita', 'Socialização', 'Participação', 'Autonomia', 'Raciocínio Lógico'];
+    const MAPA_INDICADORES = {
+        'Leitura': 'leitura',
+        'Escrita': 'escrita',
+        'Socialização': 'socializacao',
+        'Participação': 'participacao',
+        'Autonomia': 'autonomia',
+        'Raciocínio Lógico': 'raciocinio_logico'
+    };
     const ETAPAS = ['Diagnóstica', 'Processo', 'Final'];
     const CORES = { 'Diagnóstica': '#f59e0b', 'Processo': '#3b82f6', 'Final': '#10b981' };
     const CORES_TURMAS = ['#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316', '#06b6d4'];
     let dados = { educandos: [], turmas: [], avaliacoes: {} };
     let graficoInstance = null;
 
-    window.onload = () => {
-        const salvos = localStorage.getItem('crescendo_dados_v1');
-        if (salvos) dados = JSON.parse(salvos);
+    window.onload = async () => {
+        await carregarDados();
         if(sessionStorage.getItem('projeto_auth') === 'true') {
             atualizarFiltrosTurma();
             atualizarAbaAtiva();
         }
     };
 
+    async function carregarDados() {
+        try {
+            mostrarNotificacao('Carregando', 'Carregando dados do servidor...', 'info');
+            
+            // Carrega educandos
+            const { data: educandos, error: erroEducandos } = await supabase
+                .from('educandos')
+                .select('*')
+                .order('nome');
+            
+            if (erroEducandos) throw erroEducandos;
+            
+            // Carrega avaliações
+            const { data: avaliacoes, error: erroAvaliacoes } = await supabase
+                .from('avaliacoes')
+                .select('*');
+            
+            if (erroAvaliacoes) throw erroAvaliacoes;
+            
+            // Processa dados
+            dados.educandos = educandos || [];
+            dados.turmas = [...new Set(educandos?.map(e => e.turma) || [])].sort();
+            
+            // Organiza avaliações por educando
+            dados.avaliacoes = {};
+            educandos?.forEach(edu => {
+                dados.avaliacoes[edu.id] = { 'Diagnóstica': {}, 'Processo': {}, 'Final': {} };
+            });
+            
+            avaliacoes?.forEach(aval => {
+                if (!dados.avaliacoes[aval.educando_id]) {
+                    dados.avaliacoes[aval.educando_id] = { 'Diagnóstica': {}, 'Processo': {}, 'Final': {} };
+                }
+                
+                dados.avaliacoes[aval.educando_id][aval.etapa] = {
+                    'Leitura': aval.leitura || 0,
+                    'Escrita': aval.escrita || 0,
+                    'Socialização': aval.socializacao || 0,
+                    'Participação': aval.participacao || 0,
+                    'Autonomia': aval.autonomia || 0,
+                    'Raciocínio Lógico': aval.raciocinio_logico || 0
+                };
+            });
+            
+            console.log('Dados carregados:', dados);
+        } catch (erro) {
+            console.error('Erro ao carregar dados:', erro);
+            mostrarNotificacao('Erro', 'Erro ao carregar dados: ' + erro.message, 'error');
+        }
+    }
+
     function logout() { sessionStorage.removeItem('projeto_auth'); location.reload(); }
-    function salvar() { localStorage.setItem('crescendo_dados_v1', JSON.stringify(dados)); }
 
     function mudarAba(aba, btn) {
         document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
@@ -433,11 +495,58 @@
         `).join('');
     }
 
-    function salvarNota(id, et, ind, val) { 
+    function salvarNota(id, et, ind, val) {
         if(!dados.avaliacoes[id]) dados.avaliacoes[id] = { 'Diagnóstica':{}, 'Processo':{}, 'Final':{} };
         if(!dados.avaliacoes[id][et]) dados.avaliacoes[id][et] = {};
-        dados.avaliacoes[id][et][ind] = parseInt(val); 
-        salvar(); 
+        dados.avaliacoes[id][et][ind] = parseInt(val);
+        
+        // Salva no Supabase
+        salvarAvaliacaoSupabase(id, et);
+    }
+
+    async function salvarAvaliacaoSupabase(educandoId, etapa) {
+        try {
+            const avaliacaoLocal = dados.avaliacoes[educandoId][etapa];
+            
+            const avaliacaoData = {
+                educando_id: educandoId,
+                etapa: etapa,
+                leitura: avaliacaoLocal['Leitura'] || 0,
+                escrita: avaliacaoLocal['Escrita'] || 0,
+                socializacao: avaliacaoLocal['Socialização'] || 0,
+                participacao: avaliacaoLocal['Participação'] || 0,
+                autonomia: avaliacaoLocal['Autonomia'] || 0,
+                raciocinio_logico: avaliacaoLocal['Raciocínio Lógico'] || 0
+            };
+            
+            // Verifica se já existe
+            const { data: existe } = await supabase
+                .from('avaliacoes')
+                .select('id')
+                .eq('educando_id', educandoId)
+                .eq('etapa', etapa)
+                .single();
+            
+            if (existe) {
+                // Atualiza
+                const { error } = await supabase
+                    .from('avaliacoes')
+                    .update(avaliacaoData)
+                    .eq('id', existe.id);
+                
+                if (error) throw error;
+            } else {
+                // Insere
+                const { error } = await supabase
+                    .from('avaliacoes')
+                    .insert([avaliacaoData]);
+                
+                if (error) throw error;
+            }
+        } catch (erro) {
+            console.error('Erro ao salvar avaliação:', erro);
+            mostrarNotificacao('Erro', 'Erro ao salvar nota: ' + erro.message, 'error');
+        }
     }
 
     function atualizarGrafico() {
@@ -577,25 +686,34 @@
     }
 
     function exportarBackup() {
+        mostrarNotificacao('Exportando', 'Gerando arquivo de backup...', 'info');
+        
         let csv = 'ID;NOME;TURMA;ETAPA;' + INDICADORES.join(';') + '\n';
         dados.educandos.forEach(e => ETAPAS.forEach(et => {
             const notas = INDICADORES.map(ind => (dados.avaliacoes[e.id] && dados.avaliacoes[e.id][et]) ? dados.avaliacoes[e.id][et][ind] : 0);
             csv += `${e.id};${e.nome};${e.turma};${et};${notas.join(';')}\n`;
         }));
-        const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(["\ufeff", csv], { type: 'text/csv' })); a.download = 'backup.csv'; a.click();
+        const a = document.createElement('a'); 
+        a.href = URL.createObjectURL(new Blob(["\ufeff", csv], { type: 'text/csv' })); 
+        a.download = `backup_crescendo_juntos_${new Date().toISOString().split('T')[0]}.csv`; 
+        a.click();
+        
+        mostrarNotificacao('Backup Exportado', 'Arquivo CSV gerado com sucesso!', 'success');
     }
 
-    function processarListaAlunos(input) {
+    async function processarListaAlunos(input) {
         const file = input.files[0];
         if(!file) return;
         
         const nomeArquivo = file.name.toLowerCase();
         const isExcel = nomeArquivo.endsWith('.xls') || nomeArquivo.endsWith('.xlsx');
         
+        mostrarNotificacao('Processando', 'Importando lista de alunos...', 'info');
+        
         if(isExcel) {
             // Processa Excel
             const reader = new FileReader();
-            reader.onload = (e) => {
+            reader.onload = async (e) => {
                 try {
                     const data = new Uint8Array(e.target.result);
                     const workbook = XLSX.read(data, { type: 'array' });
@@ -603,16 +721,15 @@
                     const linhas = XLSX.utils.sheet_to_json(primeiraAba, { header: 1 });
                     
                     if(linhas.length === 0) {
-                        alert("Arquivo vazio!");
+                        mostrarNotificacao('Aviso', 'Arquivo vazio!', 'warning');
                         return;
                     }
                     
-                    // Verifica se tem cabeçalho
                     const primeiraLinha = linhas[0].map(c => String(c).toUpperCase());
                     const temCabecalho = primeiraLinha.some(c => c.includes('NOME')) && primeiraLinha.some(c => c.includes('TURMA'));
                     const inicio = temCabecalho ? 1 : 0;
                     
-                    let adicionados = 0;
+                    const novosEducandos = [];
                     linhas.slice(inicio).forEach(linha => {
                         if(linha.length >= 2 && linha[0] && linha[1]) {
                             const nome = String(linha[0]).trim();
@@ -620,63 +737,88 @@
                             
                             if(nome && turma) {
                                 const id = "ID" + Date.now() + "_" + Math.random().toString(36).substr(2, 9);
-                                dados.educandos.push({id, nome, turma});
-                                if(!dados.turmas.includes(turma)) dados.turmas.push(turma);
-                                dados.avaliacoes[id] = { 'Diagnóstica':{}, 'Processo':{}, 'Final':{} };
-                                adicionados++;
+                                novosEducandos.push({ id, nome, turma });
                             }
                         }
                     });
                     
-                    if(adicionados > 0) {
-                        salvar(); 
+                    if(novosEducandos.length > 0) {
+                        // Insere em lote no Supabase
+                        const { error } = await supabase
+                            .from('educandos')
+                            .insert(novosEducandos);
+                        
+                        if (error) throw error;
+                        
+                        // Atualiza dados locais
+                        dados.educandos.push(...novosEducandos);
+                        novosEducandos.forEach(edu => {
+                            if(!dados.turmas.includes(edu.turma)) dados.turmas.push(edu.turma);
+                            dados.avaliacoes[edu.id] = { 'Diagnóstica':{}, 'Processo':{}, 'Final':{} };
+                        });
+                        
                         atualizarFiltrosTurma();
                         atualizarAbaAtiva();
-                        alert(`✓ ${adicionados} aluno${adicionados !== 1 ? 's' : ''} importado${adicionados !== 1 ? 's' : ''} com sucesso!`);
+                        mostrarNotificacao('Importação Concluída', `${novosEducandos.length} aluno${novosEducandos.length !== 1 ? 's' : ''} importado${novosEducandos.length !== 1 ? 's' : ''} com sucesso!`, 'success');
                     } else {
-                        alert("Nenhum aluno válido encontrado no arquivo.\n\nFormato esperado:\nColuna A: NOME\nColuna B: TURMA");
+                        mostrarNotificacao('Erro na Importação', 'Nenhum aluno válido encontrado no arquivo.', 'error');
                     }
                 } catch(erro) {
-                    alert("Erro ao processar arquivo Excel: " + erro.message);
+                    console.error('Erro:', erro);
+                    mostrarNotificacao('Erro', 'Erro ao processar arquivo: ' + erro.message, 'error');
                 }
             };
             reader.readAsArrayBuffer(file);
         } else {
             // Processa CSV
             const reader = new FileReader();
-            reader.onload = (e) => {
-                const linhas = e.target.result.split('\n').filter(l => l.trim());
-                if(linhas.length === 0) {
-                    alert("Arquivo vazio!");
-                    return;
-                }
-                
-                const primeiraLinha = linhas[0].toUpperCase();
-                const temCabecalho = primeiraLinha.includes('NOME') && primeiraLinha.includes('TURMA');
-                const inicio = temCabecalho ? 1 : 0;
-                
-                let adicionados = 0;
-                linhas.slice(inicio).forEach(linha => {
-                    const partes = linha.split(';').map(p => p.trim());
-                    if(partes.length >= 2 && partes[0] && partes[1]) {
-                        const nome = partes[0];
-                        const turma = partes[1];
-                        const id = "ID" + Date.now() + "_" + Math.random().toString(36).substr(2, 9);
-                        
-                        dados.educandos.push({id, nome, turma});
-                        if(!dados.turmas.includes(turma)) dados.turmas.push(turma);
-                        dados.avaliacoes[id] = { 'Diagnóstica':{}, 'Processo':{}, 'Final':{} };
-                        adicionados++;
+            reader.onload = async (e) => {
+                try {
+                    const linhas = e.target.result.split('\n').filter(l => l.trim());
+                    if(linhas.length === 0) {
+                        mostrarNotificacao('Aviso', 'Arquivo vazio!', 'warning');
+                        return;
                     }
-                });
-                
-                if(adicionados > 0) {
-                    salvar(); 
-                    atualizarFiltrosTurma();
-                    atualizarAbaAtiva();
-                    alert(`✓ ${adicionados} aluno${adicionados !== 1 ? 's' : ''} importado${adicionados !== 1 ? 's' : ''} com sucesso!`);
-                } else {
-                    alert("Nenhum aluno válido encontrado no arquivo.\n\nFormato esperado:\nNOME;TURMA\nJoão Silva;3º Ano A");
+                    
+                    const primeiraLinha = linhas[0].toUpperCase();
+                    const temCabecalho = primeiraLinha.includes('NOME') && primeiraLinha.includes('TURMA');
+                    const inicio = temCabecalho ? 1 : 0;
+                    
+                    const novosEducandos = [];
+                    linhas.slice(inicio).forEach(linha => {
+                        const partes = linha.split(';').map(p => p.trim());
+                        if(partes.length >= 2 && partes[0] && partes[1]) {
+                            const nome = partes[0];
+                            const turma = partes[1];
+                            const id = "ID" + Date.now() + "_" + Math.random().toString(36).substr(2, 9);
+                            novosEducandos.push({ id, nome, turma });
+                        }
+                    });
+                    
+                    if(novosEducandos.length > 0) {
+                        // Insere em lote no Supabase
+                        const { error } = await supabase
+                            .from('educandos')
+                            .insert(novosEducandos);
+                        
+                        if (error) throw error;
+                        
+                        // Atualiza dados locais
+                        dados.educandos.push(...novosEducandos);
+                        novosEducandos.forEach(edu => {
+                            if(!dados.turmas.includes(edu.turma)) dados.turmas.push(edu.turma);
+                            dados.avaliacoes[edu.id] = { 'Diagnóstica':{}, 'Processo':{}, 'Final':{} };
+                        });
+                        
+                        atualizarFiltrosTurma();
+                        atualizarAbaAtiva();
+                        mostrarNotificacao('Importação Concluída', `${novosEducandos.length} aluno${novosEducandos.length !== 1 ? 's' : ''} importado${novosEducandos.length !== 1 ? 's' : ''} com sucesso!`, 'success');
+                    } else {
+                        mostrarNotificacao('Erro na Importação', 'Nenhum aluno válido encontrado no arquivo.', 'error');
+                    }
+                } catch(erro) {
+                    console.error('Erro:', erro);
+                    mostrarNotificacao('Erro', 'Erro ao processar arquivo: ' + erro.message, 'error');
                 }
             };
             reader.readAsText(file);
@@ -684,17 +826,19 @@
         input.value = '';
     }
 
-    function processarBackup(input) {
+    async function processarBackup(input) {
         const file = input.files[0];
         if(!file) return;
         
         const nomeArquivo = file.name.toLowerCase();
         const isExcel = nomeArquivo.endsWith('.xls') || nomeArquivo.endsWith('.xlsx');
         
+        mostrarNotificacao('Processando', 'Restaurando backup...', 'info');
+        
         if(isExcel) {
             // Processa Excel
             const reader = new FileReader();
-            reader.onload = (e) => {
+            reader.onload = async (e) => {
                 try {
                     const data = new Uint8Array(e.target.result);
                     const workbook = XLSX.read(data, { type: 'array' });
@@ -702,72 +846,115 @@
                     const linhas = XLSX.utils.sheet_to_json(primeiraAba, { header: 1 });
                     
                     if(linhas.length > 0 && linhas[0].some(c => String(c).toUpperCase().includes('ETAPA'))) {
-                        dados = { educandos: [], turmas: [], avaliacoes: {} };
-                        
-                        linhas.slice(1).forEach(linha => {
-                            if(linha.length > 3) {
-                                const id = String(linha[0]);
-                                const nome = String(linha[1]);
-                                const turma = String(linha[2]);
-                                const etapa = String(linha[3]);
-                                
-                                if(!dados.avaliacoes[id]) {
-                                    dados.educandos.push({id, nome, turma});
-                                    if(!dados.turmas.includes(turma)) dados.turmas.push(turma);
-                                    dados.avaliacoes[id] = { 'Diagnóstica':{}, 'Processo':{}, 'Final':{} };
-                                }
-                                
-                                if(!dados.avaliacoes[id][etapa]) dados.avaliacoes[id][etapa] = {};
-                                INDICADORES.forEach((ind, i) => {
-                                    dados.avaliacoes[id][etapa][ind] = parseInt(linha[i+4]) || 0;
-                                });
-                            }
-                        });
-                        
-                        salvar(); 
-                        atualizarFiltrosTurma();
-                        atualizarAbaAtiva();
-                        alert("✓ Backup importado com sucesso!");
+                        await restaurarBackupCompleto(linhas);
                     } else {
-                        alert("Arquivo de backup inválido!");
+                        mostrarNotificacao('Erro', 'Arquivo de backup inválido!', 'error');
                     }
                 } catch(erro) {
-                    alert("Erro ao processar arquivo Excel: " + erro.message);
+                    console.error('Erro:', erro);
+                    mostrarNotificacao('Erro', 'Erro ao processar arquivo: ' + erro.message, 'error');
                 }
             };
             reader.readAsArrayBuffer(file);
         } else {
             // Processa CSV
             const reader = new FileReader();
-            reader.onload = (e) => {
-                const linhas = e.target.result.split('\n').filter(l => l.trim());
-                if(linhas.length > 0 && linhas[0].toUpperCase().includes('ETAPA')) {
-                    dados = { educandos: [], turmas: [], avaliacoes: {} };
-                    linhas.slice(1).forEach(l => {
-                        const p = l.split(';');
-                        if(p.length > 3 && !dados.avaliacoes[p[0]]) {
-                            dados.educandos.push({id:p[0], nome:p[1], turma:p[2]});
-                            if(!dados.turmas.includes(p[2])) dados.turmas.push(p[2]);
-                            dados.avaliacoes[p[0]] = { 'Diagnóstica':{}, 'Processo':{}, 'Final':{} };
-                        }
-                        if(p.length > 3) {
-                            INDICADORES.forEach((ind, i) => {
-                                if(!dados.avaliacoes[p[0]][p[3]]) dados.avaliacoes[p[0]][p[3]] = {};
-                                dados.avaliacoes[p[0]][p[3]][ind] = parseInt(p[i+4]) || 0;
-                            });
-                        }
-                    });
-                    salvar(); 
-                    atualizarFiltrosTurma();
-                    atualizarAbaAtiva();
-                    alert("✓ Backup importado com sucesso!");
-                } else {
-                    alert("Arquivo de backup inválido!");
+            reader.onload = async (e) => {
+                try {
+                    const linhas = e.target.result.split('\n').filter(l => l.trim());
+                    if(linhas.length > 0 && linhas[0].toUpperCase().includes('ETAPA')) {
+                        // Converte CSV para formato de linhas
+                        const linhasArray = linhas.map(l => l.split(';'));
+                        await restaurarBackupCompleto(linhasArray);
+                    } else {
+                        mostrarNotificacao('Erro', 'Arquivo de backup inválido!', 'error');
+                    }
+                } catch(erro) {
+                    console.error('Erro:', erro);
+                    mostrarNotificacao('Erro', 'Erro ao processar arquivo: ' + erro.message, 'error');
                 }
             };
             reader.readAsText(file);
         }
         input.value = '';
+    }
+
+    async function restaurarBackupCompleto(linhas) {
+        try {
+            // Limpa dados atuais
+            await supabase.from('avaliacoes').delete().neq('id', 0);
+            await supabase.from('educandos').delete().neq('id', '');
+            
+            const educandosMap = new Map();
+            const avaliacoesLista = [];
+            
+            // Processa linhas (pula cabeçalho)
+            linhas.slice(1).forEach(linha => {
+                if(linha.length > 3) {
+                    const id = String(linha[0]);
+                    const nome = String(linha[1]);
+                    const turma = String(linha[2]);
+                    const etapa = String(linha[3]);
+                    
+                    // Adiciona educando se ainda não existe
+                    if(!educandosMap.has(id)) {
+                        educandosMap.set(id, { id, nome, turma });
+                    }
+                    
+                    // Cria objeto de avaliação
+                    const avaliacao = {
+                        educando_id: id,
+                        etapa: etapa,
+                        leitura: parseInt(linha[4]) || 0,
+                        escrita: parseInt(linha[5]) || 0,
+                        socializacao: parseInt(linha[6]) || 0,
+                        participacao: parseInt(linha[7]) || 0,
+                        autonomia: parseInt(linha[8]) || 0,
+                        raciocinio_logico: parseInt(linha[9]) || 0
+                    };
+                    
+                    // Só adiciona se tiver pelo menos uma nota diferente de 0
+                    if(avaliacao.leitura || avaliacao.escrita || avaliacao.socializacao || 
+                       avaliacao.participacao || avaliacao.autonomia || avaliacao.raciocinio_logico) {
+                        avaliacoesLista.push(avaliacao);
+                    }
+                }
+            });
+            
+            // Insere educandos
+            const educandosArray = Array.from(educandosMap.values());
+            if(educandosArray.length > 0) {
+                const { error: erroEdu } = await supabase
+                    .from('educandos')
+                    .insert(educandosArray);
+                
+                if (erroEdu) throw erroEdu;
+            }
+            
+            // Insere avaliações em lotes de 100
+            if(avaliacoesLista.length > 0) {
+                for(let i = 0; i < avaliacoesLista.length; i += 100) {
+                    const lote = avaliacoesLista.slice(i, i + 100);
+                    const { error: erroAval } = await supabase
+                        .from('avaliacoes')
+                        .insert(lote);
+                    
+                    if (erroAval) throw erroAval;
+                }
+            }
+            
+            // Recarrega dados
+            await carregarDados();
+            atualizarFiltrosTurma();
+            atualizarAbaAtiva();
+            
+            mostrarNotificacao('Backup Restaurado', 
+                `${educandosArray.length} alunos e ${avaliacoesLista.length} avaliações restauradas com sucesso!`, 
+                'success');
+        } catch(erro) {
+            console.error('Erro ao restaurar backup:', erro);
+            mostrarNotificacao('Erro', 'Erro ao restaurar backup: ' + erro.message, 'error');
+        }
     }
 
     function adicionarEducando() {
@@ -800,19 +987,38 @@
         }
         
         if(turma) {
-            const id = "ID" + Date.now();
+            adicionarEducandoSupabase(nome, turma);
+        }
+    }
+
+    async function adicionarEducandoSupabase(nome, turma) {
+        try {
+            const id = "ID" + Date.now() + "_" + Math.random().toString(36).substr(2, 9);
+            
+            const { error } = await supabase
+                .from('educandos')
+                .insert([{ id, nome, turma }]);
+            
+            if (error) throw error;
+            
+            // Atualiza local
             dados.educandos.push({id, nome, turma});
             if(!dados.turmas.includes(turma)) dados.turmas.push(turma);
             dados.avaliacoes[id] = { 'Diagnóstica':{}, 'Processo':{}, 'Final':{} };
-            salvar(); 
+            
             atualizarFiltrosTurma(); 
             atualizarListaEducandos();
             atualizarVisaoGeral();
             atualizarCheckboxesTurmas();
+            
+            mostrarNotificacao('Aluno Adicionado', `${nome} foi adicionado à turma ${turma}!`, 'success');
+        } catch (erro) {
+            console.error('Erro ao adicionar educando:', erro);
+            mostrarNotificacao('Erro', 'Erro ao adicionar aluno: ' + erro.message, 'error');
         }
     }
 
-    function mudarTurmaEducando(id, novaTurma) {
+    async function mudarTurmaEducando(id, novaTurma) {
         if(!novaTurma) return;
         
         const educando = dados.educandos.find(e => e.id === id);
@@ -820,25 +1026,61 @@
         
         const turmaAntiga = educando.turma;
         
-        if(confirm(`Mover "${educando.nome}" de "${turmaAntiga}" para "${novaTurma}"?`)) {
-            educando.turma = novaTurma;
-            salvar();
-            atualizarListaEducandos();
-            atualizarVisaoGeral();
-            alert(`✓ Aluno movido com sucesso para ${novaTurma}!`);
+        const confirmado = await confirmar('Mover Aluno', `Mover "${educando.nome}" de "${turmaAntiga}" para "${novaTurma}"?`, '📚');
+        
+        if(confirmado) {
+            try {
+                const { error } = await supabase
+                    .from('educandos')
+                    .update({ turma: novaTurma })
+                    .eq('id', id);
+                
+                if (error) throw error;
+                
+                educando.turma = novaTurma;
+                atualizarListaEducandos();
+                atualizarVisaoGeral();
+                mostrarNotificacao('Aluno Movido', `Aluno movido com sucesso para ${novaTurma}!`, 'success');
+            } catch (erro) {
+                console.error('Erro ao mover educando:', erro);
+                mostrarNotificacao('Erro', 'Erro ao mover aluno: ' + erro.message, 'error');
+                atualizarListaEducandos();
+            }
         } else {
-            // Reseta o select se cancelar
             atualizarListaEducandos();
         }
     }
 
-    function remover(id) { 
-        if(confirm("Remover aluno?")) { 
-            dados.educandos = dados.educandos.filter(e => e.id !== id); 
-            delete dados.avaliacoes[id]; 
-            salvar(); 
-            atualizarListaEducandos();
-            atualizarVisaoGeral();
+    async function remover(id) {
+        const confirmado = await confirmar('Remover Aluno', 'Tem certeza que deseja remover este aluno?', '🗑️');
+        
+        if(confirmado) {
+            try {
+                // Remove avaliações primeiro
+                const { error: erroAval } = await supabase
+                    .from('avaliacoes')
+                    .delete()
+                    .eq('educando_id', id);
+                
+                if (erroAval) throw erroAval;
+                
+                // Remove educando
+                const { error: erroEdu } = await supabase
+                    .from('educandos')
+                    .delete()
+                    .eq('id', id);
+                
+                if (erroEdu) throw erroEdu;
+                
+                dados.educandos = dados.educandos.filter(e => e.id !== id); 
+                delete dados.avaliacoes[id]; 
+                atualizarListaEducandos();
+                atualizarVisaoGeral();
+                mostrarNotificacao('Aluno Removido', 'Aluno removido com sucesso!', 'success');
+            } catch (erro) {
+                console.error('Erro ao remover educando:', erro);
+                mostrarNotificacao('Erro', 'Erro ao remover aluno: ' + erro.message, 'error');
+            }
         } 
     }
 
@@ -875,7 +1117,7 @@
         }).join('');
     }
 
-    function adicionarNovaTurma() {
+    async function adicionarNovaTurma() {
         const input = document.getElementById('inputNovaTurma');
         const nomeTurma = input.value.trim();
         
@@ -890,7 +1132,6 @@
         }
         
         dados.turmas.push(nomeTurma);
-        salvar();
         input.value = '';
         atualizarListaTurmasModal();
         atualizarFiltrosTurma();
@@ -910,7 +1151,6 @@
         
         if(confirmado) {
             dados.turmas = dados.turmas.filter(t => t !== turma);
-            salvar();
             atualizarListaTurmasModal();
             atualizarFiltrosTurma();
             atualizarCheckboxesTurmas();
@@ -1042,14 +1282,37 @@
         }
     }
 
-    function limparTudo() { 
-        if(confirm("⚠️ ATENÇÃO: Isso vai apagar TODOS os dados do sistema!\n\nDeseja continuar?")) { 
-            // Limpa localStorage
-            localStorage.removeItem('crescendo_dados_v1');
-            // Limpa sessionStorage
-            sessionStorage.removeItem('projeto_auth');
-            // Recarrega a página
-            location.reload(); 
+    async function limparTudo() {
+        const confirmado = await confirmar(
+            'Resetar Sistema', 
+            '⚠️ ATENÇÃO: Isso vai apagar TODOS os dados do sistema no servidor!\n\nDeseja continuar?',
+            '⚠️'
+        );
+        
+        if(confirmado) {
+            try {
+                // Deleta todas as avaliações
+                const { error: erroAval } = await supabase
+                    .from('avaliacoes')
+                    .delete()
+                    .neq('id', 0); // Deleta todos
+                
+                if (erroAval) throw erroAval;
+                
+                // Deleta todos os educandos
+                const { error: erroEdu } = await supabase
+                    .from('educandos')
+                    .delete()
+                    .neq('id', ''); // Deleta todos
+                
+                if (erroEdu) throw erroEdu;
+                
+                sessionStorage.removeItem('projeto_auth');
+                location.reload();
+            } catch (erro) {
+                console.error('Erro ao resetar sistema:', erro);
+                mostrarNotificacao('Erro', 'Erro ao resetar sistema: ' + erro.message, 'error');
+            }
         } 
     }
     

@@ -90,6 +90,12 @@
         .confirm-modal .modal-content { max-width: 450px; text-align: center; }
         .confirm-buttons { display: flex; gap: 10px; margin-top: 20px; }
         .confirm-buttons button { flex: 1; }
+        
+        /* Modal de Prompt */
+        .prompt-modal .modal-content { max-width: 450px; }
+        .prompt-input { width: 100%; padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px; margin: 15px 0; font-size: 1em; }
+        .prompt-buttons { display: flex; gap: 10px; margin-top: 10px; }
+        .prompt-buttons button { flex: 1; }
     </style>
 </head>
 <body>
@@ -106,6 +112,19 @@
         <div class="confirm-buttons">
             <button class="btn btn-danger" onclick="confirmarAcao(false)">Cancelar</button>
             <button class="btn btn-primary" onclick="confirmarAcao(true)">Confirmar</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Prompt -->
+<div id="modalPrompt" class="modal prompt-modal">
+    <div class="modal-content">
+        <h3 id="promptTitle" style="margin-bottom: 10px;">Digite a informação</h3>
+        <p id="promptMessage" style="color: #6b7280; margin-bottom: 10px;"></p>
+        <input type="text" id="promptInput" class="prompt-input" placeholder="Digite aqui...">
+        <div class="prompt-buttons">
+            <button class="btn btn-danger" onclick="confirmarPrompt(null)">Cancelar</button>
+            <button class="btn btn-primary" onclick="confirmarPrompt(document.getElementById('promptInput').value)">OK</button>
         </div>
     </div>
 </div>
@@ -266,13 +285,111 @@
 <script>
     const CHAVE_MESTRA = "Z2lyYXNzb2xfMTIz";
     
-    // Configuração Supabase
+    // Configuração Supabase - usando API REST diretamente
     const SUPABASE_URL = 'https://nlwugowutekyrhybxnil.supabase.co';
     const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5sd3Vnb3d1dGVreXJoeWJ4bmlsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc4NTM0MzYsImV4cCI6MjA4MzQyOTQzNn0.ebKFq1SMeOZqO4SJCcec8zfrarmzWoiwEetEc_BQFyQ';
-    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    
+    // Cliente Supabase REST API
+    const supabase = {
+        from: (table) => {
+            const headers = {
+                'apikey': SUPABASE_KEY,
+                'Authorization': `Bearer ${SUPABASE_KEY}`,
+                'Content-Type': 'application/json',
+                'Prefer': 'return=representation'
+            };
+            
+            return {
+                select: (columns = '*') => ({
+                    order: (column, opts = {}) => ({
+                        then: (resolve, reject) => {
+                            const orderParam = opts.ascending === false ? `${column}.desc` : `${column}.asc`;
+                            fetch(`${SUPABASE_URL}/rest/v1/${table}?select=${columns}&order=${orderParam}`, { headers })
+                                .then(r => r.json())
+                                .then(data => resolve({ data, error: null }))
+                                .catch(error => resolve({ data: null, error }));
+                        }
+                    }),
+                    eq: (column, value) => ({
+                        single: () => ({
+                            then: (resolve, reject) => {
+                                fetch(`${SUPABASE_URL}/rest/v1/${table}?select=${columns}&${column}=eq.${value}`, { headers })
+                                    .then(r => r.json())
+                                    .then(data => resolve({ data: data[0] || null, error: null }))
+                                    .catch(error => resolve({ data: null, error }));
+                            }
+                        }),
+                        then: (resolve, reject) => {
+                            fetch(`${SUPABASE_URL}/rest/v1/${table}?select=${columns}&${column}=eq.${value}`, { headers })
+                                .then(r => r.json())
+                                .then(data => resolve({ data, error: null }))
+                                .catch(error => resolve({ data: null, error }));
+                        }
+                    }),
+                    then: (resolve, reject) => {
+                        fetch(`${SUPABASE_URL}/rest/v1/${table}?select=${columns}`, { headers })
+                            .then(r => r.json())
+                            .then(data => resolve({ data, error: null }))
+                            .catch(error => resolve({ data: null, error }));
+                    }
+                }),
+                insert: (values) => ({
+                    then: (resolve, reject) => {
+                        fetch(`${SUPABASE_URL}/rest/v1/${table}`, {
+                            method: 'POST',
+                            headers,
+                            body: JSON.stringify(Array.isArray(values) ? values : [values])
+                        })
+                        .then(r => r.ok ? r.json().catch(() => ({})) : Promise.reject(r))
+                        .then(data => resolve({ data, error: null }))
+                        .catch(error => resolve({ data: null, error }));
+                    }
+                }),
+                update: (values) => ({
+                    eq: (column, value) => ({
+                        then: (resolve, reject) => {
+                            fetch(`${SUPABASE_URL}/rest/v1/${table}?${column}=eq.${value}`, {
+                                method: 'PATCH',
+                                headers,
+                                body: JSON.stringify(values)
+                            })
+                            .then(r => r.ok ? r.json().catch(() => ({})) : Promise.reject(r))
+                            .then(data => resolve({ data, error: null }))
+                            .catch(error => resolve({ data: null, error }));
+                        }
+                    })
+                }),
+                delete: () => ({
+                    eq: (column, value) => ({
+                        then: (resolve, reject) => {
+                            fetch(`${SUPABASE_URL}/rest/v1/${table}?${column}=eq.${value}`, {
+                                method: 'DELETE',
+                                headers
+                            })
+                            .then(r => r.ok ? resolve({ data: null, error: null }) : Promise.reject(r))
+                            .catch(error => resolve({ data: null, error }));
+                        }
+                    }),
+                    neq: (column, value) => ({
+                        then: (resolve, reject) => {
+                            fetch(`${SUPABASE_URL}/rest/v1/${table}?${column}=neq.${value}`, {
+                                method: 'DELETE',
+                                headers
+                            })
+                            .then(r => r.ok ? resolve({ data: null, error: null }) : Promise.reject(r))
+                            .catch(error => resolve({ data: null, error }));
+                        }
+                    })
+                })
+            };
+        }
+    };
+    
+    console.log('✓ Cliente Supabase REST inicializado');
     
     // Sistema de Notificações
     let confirmCallback = null;
+    let promptCallback = null;
     
     function mostrarNotificacao(titulo, mensagem, tipo = 'success') {
         const container = document.getElementById('notificationContainer');
@@ -322,15 +439,45 @@
         }
     }
 
+    function perguntar(titulo, mensagem = '', placeholder = 'Digite aqui...') {
+        return new Promise((resolve) => {
+            document.getElementById('promptTitle').textContent = titulo;
+            document.getElementById('promptMessage').textContent = mensagem;
+            const input = document.getElementById('promptInput');
+            input.value = '';
+            input.placeholder = placeholder;
+            document.getElementById('modalPrompt').classList.add('active');
+            
+            // Foca no input
+            setTimeout(() => input.focus(), 100);
+            
+            // Permite Enter para confirmar
+            input.onkeypress = (e) => {
+                if(e.key === 'Enter') {
+                    confirmarPrompt(input.value);
+                }
+            };
+            
+            promptCallback = resolve;
+        });
+    }
+    
+    function confirmarPrompt(valor) {
+        document.getElementById('modalPrompt').classList.remove('active');
+        if(promptCallback) {
+            promptCallback(valor ? valor.trim() : null);
+            promptCallback = null;
+        }
+    }
+
     function handleLogin() {
         const campo = document.getElementById('access-key');
         const senhaDigitada = campo.value.trim();
         if (btoa(senhaDigitada) === CHAVE_MESTRA) {
+            sessionStorage.setItem('projeto_auth', 'true');
             document.getElementById('login-screen').style.display = 'none';
             document.getElementById('main-content').style.display = 'block';
-            sessionStorage.setItem('projeto_auth', 'true');
-            atualizarFiltrosTurma();
-            atualizarAbaAtiva();
+            inicializarSistema();
         } else {
             document.getElementById('login-error').style.display = 'block';
             campo.value = '';
@@ -338,12 +485,19 @@
     }
 
     if(sessionStorage.getItem('projeto_auth') === 'true') {
-        document.addEventListener('DOMContentLoaded', () => {
+        document.addEventListener('DOMContentLoaded', async () => {
             document.getElementById('login-screen').style.display = 'none';
             document.getElementById('main-content').style.display = 'block';
-            atualizarFiltrosTurma();
-            atualizarAbaAtiva();
+            await inicializarSistema();
         });
+    }
+
+    async function inicializarSistema() {
+        console.log('🚀 Iniciando sistema...');
+        await carregarDados();
+        atualizarFiltrosTurma();
+        atualizarAbaAtiva();
+        console.log('✓ Sistema inicializado!');
     }
 
     const INDICADORES = ['Leitura', 'Escrita', 'Socialização', 'Participação', 'Autonomia', 'Raciocínio Lógico'];
@@ -362,31 +516,42 @@
     let graficoInstance = null;
 
     window.onload = async () => {
-        await carregarDados();
+        console.log('✓ Sistema usando Supabase REST API direto');
+        
         if(sessionStorage.getItem('projeto_auth') === 'true') {
-            atualizarFiltrosTurma();
-            atualizarAbaAtiva();
+            await inicializarSistema();
         }
     };
 
     async function carregarDados() {
         try {
+            console.log('📊 Carregando dados...');
             mostrarNotificacao('Carregando', 'Carregando dados do servidor...', 'info');
             
             // Carrega educandos
+            console.log('→ Buscando educandos...');
             const { data: educandos, error: erroEducandos } = await supabase
                 .from('educandos')
                 .select('*')
                 .order('nome');
             
-            if (erroEducandos) throw erroEducandos;
+            if (erroEducandos) {
+                console.error('❌ Erro ao buscar educandos:', erroEducandos);
+                throw erroEducandos;
+            }
+            console.log(`✓ ${educandos?.length || 0} educandos carregados`);
             
             // Carrega avaliações
+            console.log('→ Buscando avaliações...');
             const { data: avaliacoes, error: erroAvaliacoes } = await supabase
                 .from('avaliacoes')
                 .select('*');
             
-            if (erroAvaliacoes) throw erroAvaliacoes;
+            if (erroAvaliacoes) {
+                console.error('❌ Erro ao buscar avaliações:', erroAvaliacoes);
+                throw erroAvaliacoes;
+            }
+            console.log(`✓ ${avaliacoes?.length || 0} avaliações carregadas`);
             
             // Processa dados
             dados.educandos = educandos || [];
@@ -413,10 +578,16 @@
                 };
             });
             
-            console.log('Dados carregados:', dados);
+            console.log('✓ Dados processados:', {
+                educandos: dados.educandos.length,
+                turmas: dados.turmas.length,
+                avaliacoes: Object.keys(dados.avaliacoes).length
+            });
+            
+            mostrarNotificacao('Sucesso', 'Sistema pronto para uso!', 'success');
         } catch (erro) {
-            console.error('Erro ao carregar dados:', erro);
-            mostrarNotificacao('Erro', 'Erro ao carregar dados: ' + erro.message, 'error');
+            console.error('❌ Erro ao carregar dados:', erro);
+            mostrarNotificacao('Erro', 'Erro ao carregar dados. Verifique o console para detalhes.', 'error');
         }
     }
 
@@ -957,19 +1128,27 @@
         }
     }
 
-    function adicionarEducando() {
-        const nome = prompt("Nome do Aluno:");
+    async function adicionarEducando() {
+        const nome = await perguntar('Nome do Aluno', 'Digite o nome completo do aluno:', 'Ex: João Silva');
         if(!nome) return;
         
         let turma = '';
         
         if(dados.turmas.length > 0) {
-            const opcao = confirm(`Deseja adicionar "${nome}" em uma turma existente?\n\nClique OK para escolher uma turma existente\nClique CANCELAR para criar uma nova turma`);
+            const opcao = await confirmar(
+                'Escolher Turma', 
+                `Deseja adicionar "${nome}" em uma turma existente?\n\nClique CONFIRMAR para escolher uma turma existente\nClique CANCELAR para criar uma nova turma`, 
+                '📚'
+            );
             
             if(opcao) {
                 // Escolher turma existente
                 const listaTurmas = dados.turmas.sort().map((t, i) => `${i+1}. ${t}`).join('\n');
-                const escolha = prompt(`Selecione o número da turma:\n\n${listaTurmas}`);
+                const escolha = await perguntar(
+                    'Selecione a Turma', 
+                    `Digite o número da turma:\n\n${listaTurmas}`,
+                    'Digite o número...'
+                );
                 
                 if(escolha && !isNaN(escolha)) {
                     const index = parseInt(escolha) - 1;
@@ -979,15 +1158,15 @@
                 }
             } else {
                 // Criar nova turma
-                turma = prompt("Nome da nova turma:");
+                turma = await perguntar('Nova Turma', 'Digite o nome da nova turma:', 'Ex: 3º Ano A');
             }
         } else {
             // Não há turmas, criar a primeira
-            turma = prompt("Nome da turma:");
+            turma = await perguntar('Nome da Turma', 'Digite o nome da primeira turma:', 'Ex: 3º Ano A');
         }
         
         if(turma) {
-            adicionarEducandoSupabase(nome, turma);
+            await adicionarEducandoSupabase(nome, turma);
         }
     }
 
@@ -1163,11 +1342,20 @@
     document.addEventListener('click', function(e) {
         const modalTurmas = document.getElementById('modalTurmas');
         const modalExportar = document.getElementById('modalExportar');
+        const modalConfirm = document.getElementById('modalConfirm');
+        const modalPrompt = document.getElementById('modalPrompt');
+        
         if(e.target === modalTurmas) {
             fecharModalTurmas();
         }
         if(e.target === modalExportar) {
             fecharModalExportar();
+        }
+        if(e.target === modalConfirm) {
+            confirmarAcao(false);
+        }
+        if(e.target === modalPrompt) {
+            confirmarPrompt(null);
         }
     });
 

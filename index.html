@@ -46,6 +46,9 @@
 
         .tab-content { display: none; }
         .tab-content.active { display: block; }
+        
+        .sub-tab-content { display: none; }
+        .sub-tab-content.active { display: block; }
 
         .btn { padding: 10px 20px; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; transition: 0.2s; }
         .btn-primary { background: var(--primary); color: white; }
@@ -155,60 +158,116 @@
 
         <nav class="tabs">
             <button class="tab-btn active" onclick="mudarAba('visao-geral', this)">Painel de Gráficos</button>
-            <button class="tab-btn" onclick="mudarAba('avaliacoes', this)">Lançar Notas (1-4)</button>
+            <button class="tab-btn" onclick="mudarAba('relatorios', this)">Relatórios</button>
+            <button class="tab-btn" onclick="mudarAba('avaliacoes', this)">Avaliações</button>
         </nav>
 
         <div id="visao-geral" class="tab-content active">
+            <!-- Detalhamento por Turmas -->
             <div class="card">
-                <h3 style="margin-bottom: 20px;">⚙️ Configuração de Comparação</h3>
-                
-                <div style="background: #f9fafb; padding: 20px; border-radius: 10px; margin-bottom: 20px;">
-                    <div style="margin-bottom: 20px;">
-                        <label style="display: block; font-weight: 600; margin-bottom: 10px; color: #374151;">
-                            📊 Selecione as Turmas (até 4):
-                        </label>
-                        <div id="checkboxTurmas" style="display: flex; flex-wrap: wrap; gap: 15px;">
+                <h3 style="margin-bottom: 20px;">📋 Desempenho por Turma</h3>
+                <div id="turmasDetalhadas">
+                    <!-- Será preenchido dinamicamente -->
+                </div>
+            </div>
+        </div>
+
+        <div id="relatorios" class="tab-content">
+            <!-- Sub-abas de Relatórios -->
+            <div class="card" style="padding: 15px 25px;">
+                <div style="display: flex; gap: 15px; border-bottom: 2px solid #f3f4f6;">
+                    <button class="tab-btn active" onclick="mudarSubAba('relatorio-individual', this)" style="border-bottom-width: 3px;">Por Educando</button>
+                    <button class="tab-btn" onclick="mudarSubAba('relatorio-evolucao', this)" style="border-bottom-width: 3px;">Evolução por Turma</button>
+                </div>
+            </div>
+
+            <!-- Relatório Individual -->
+            <div id="relatorio-individual" class="sub-tab-content active">
+                <div class="card">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                        <h3>📊 Desempenho Individual</h3>
+                        <button class="btn btn-success" onclick="exportarGraficoRelatorio('individual')">📥 Exportar Gráfico</button>
+                    </div>
+                    
+                    <div style="background: #f9fafb; padding: 20px; border-radius: 10px; margin-bottom: 20px;">
+                        <div style="display: flex; gap: 15px; align-items: center; flex-wrap: wrap;">
+                            <div style="flex: 1; min-width: 200px;">
+                                <label style="display: block; font-weight: 600; margin-bottom: 10px;">Selecione o Educando:</label>
+                                <select id="educandoRelatorio" onchange="atualizarRelatorioIndividual()" style="width: 100%; padding: 10px;">
+                                    <option value="">Escolha um educando...</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label style="display: block; font-weight: 600; margin-bottom: 10px;">Etapas:</label>
+                                <div style="display: flex; gap: 10px;">
+                                    <label style="display: flex; align-items: center; gap: 5px; cursor: pointer;">
+                                        <input type="checkbox" class="checkbox-etapa-individual" value="Diagnóstica" checked onchange="atualizarRelatorioIndividual()">
+                                        <span>Diagnóstica</span>
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 5px; cursor: pointer;">
+                                        <input type="checkbox" class="checkbox-etapa-individual" value="Processo" checked onchange="atualizarRelatorioIndividual()">
+                                        <span>Processo</span>
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 5px; cursor: pointer;">
+                                        <input type="checkbox" class="checkbox-etapa-individual" value="Final" checked onchange="atualizarRelatorioIndividual()">
+                                        <span>Final</span>
+                                    </label>
+                                </div>
+                            </div>
+                            <div>
+                                <label style="display: block; font-weight: 600; margin-bottom: 10px;">Tipo:</label>
+                                <select id="tipoGraficoIndividual" onchange="atualizarRelatorioIndividual()" style="padding: 10px;">
+                                    <option value="bar">Barras</option>
+                                    <option value="radar">Radar</option>
+                                    <option value="line">Linhas</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="chart-container"><canvas id="graficoIndividual"></canvas></div>
+                </div>
+            </div>
+
+            <!-- Relatório de Evolução -->
+            <div id="relatorio-evolucao" class="sub-tab-content">
+                <div class="card">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                        <h3>📈 Evolução por Turma</h3>
+                        <button class="btn btn-success" onclick="exportarGraficoRelatorio('evolucao')">📥 Exportar Gráfico</button>
+                    </div>
+                    
+                    <div style="background: #f9fafb; padding: 20px; border-radius: 10px; margin-bottom: 20px;">
+                        <div style="margin-bottom: 15px;">
+                            <label style="display: block; font-weight: 600; margin-bottom: 10px;">Selecione as Turmas:</label>
+                            <div id="checkboxTurmasEvolucao" style="display: flex; flex-wrap: wrap; gap: 15px;">
+                                <!-- Será preenchido dinamicamente -->
+                            </div>
+                        </div>
+                        
+                        <div style="display: flex; gap: 15px; align-items: center;">
+                            <div>
+                                <label style="display: block; font-weight: 600; margin-bottom: 10px;">Comparar:</label>
+                                <select id="etapasComparacao" onchange="atualizarRelatorioEvolucao()" style="padding: 10px;">
+                                    <option value="diag_proc">Diagnóstica → Processo</option>
+                                    <option value="proc_final">Processo → Final</option>
+                                    <option value="diag_final">Diagnóstica → Final</option>
+                                </select>
+                            </div>
+                            <button class="btn btn-primary" onclick="selecionarTodasTurmasEvolucao()">Todas as Turmas</button>
+                            <button class="btn btn-danger btn-small" onclick="limparSelecaoTurmasEvolucao()">Limpar</button>
+                        </div>
+                    </div>
+                    
+                    <div class="chart-container"><canvas id="graficoEvolucao"></canvas></div>
+                    
+                    <div class="card" style="margin-top: 20px;">
+                        <h4 style="margin-bottom: 15px;">📊 Resumo de Progresso</h4>
+                        <div id="resumoEvolucao" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 15px;">
                             <!-- Será preenchido dinamicamente -->
                         </div>
                     </div>
-                    
-                    <div style="margin-bottom: 20px;">
-                        <label style="display: block; font-weight: 600; margin-bottom: 10px; color: #374151;">
-                            📅 Selecione as Etapas:
-                        </label>
-                        <div style="display: flex; flex-wrap: wrap; gap: 15px;">
-                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                                <input type="checkbox" class="checkbox-etapa" value="Diagnóstica" checked onchange="atualizarGrafico()">
-                                <span>Diagnóstica</span>
-                            </label>
-                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                                <input type="checkbox" class="checkbox-etapa" value="Processo" onchange="atualizarGrafico()">
-                                <span>Processo</span>
-                            </label>
-                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                                <input type="checkbox" class="checkbox-etapa" value="Final" onchange="atualizarGrafico()">
-                                <span>Final</span>
-                            </label>
-                        </div>
-                    </div>
-                    
-                    <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
-                        <select id="tipoGrafico" onchange="atualizarGrafico()" style="flex: 1; min-width: 150px;">
-                            <option value="bar">Gráfico de Barras</option>
-                            <option value="radar">Gráfico Radar</option>
-                            <option value="line">Gráfico de Linhas</option>
-                        </select>
-                        <button class="btn btn-primary" onclick="selecionarTodasTurmas()">Todas as Turmas</button>
-                        <button class="btn btn-danger btn-small" onclick="limparSelecaoTurmas()">Limpar</button>
-                        <button class="btn btn-success" onclick="abrirModalExportar()">📥 Exportar Gráfico</button>
-                    </div>
                 </div>
-                
-                <div class="chart-container"><canvas id="graficoIndicadores"></canvas></div>
-            </div>
-            <div class="card">
-                <h3>Visão geral das turmas</h3>
-                <div id="visaoTurmasContainer" class="empty-state">Nenhuma turma cadastrada.</div>
             </div>
         </div>
 
@@ -514,6 +573,8 @@
     const CORES_TURMAS = ['#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316', '#06b6d4'];
     let dados = { educandos: [], turmas: [], avaliacoes: {} };
     let graficoInstance = null;
+    let graficoIndividualInstance = null;
+    let graficoEvolucaoInstance = null;
 
     window.onload = async () => {
         console.log('✓ Sistema usando Supabase REST API direto');
@@ -601,6 +662,22 @@
         atualizarAbaAtiva();
     }
 
+    function mudarSubAba(subAba, btn) {
+        const parent = btn.closest('.card');
+        parent.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        
+        document.querySelectorAll('.sub-tab-content').forEach(c => c.classList.remove('active'));
+        document.getElementById(subAba).classList.add('active');
+        
+        if(subAba === 'relatorio-individual') {
+            atualizarRelatorioIndividual();
+        } else if(subAba === 'relatorio-evolucao') {
+            atualizarCheckboxesTurmasEvolucao();
+            atualizarRelatorioEvolucao();
+        }
+    }
+
     function atualizarVisaoGeral() {
         const container = document.getElementById('visaoTurmasContainer');
         if(!container) return;
@@ -616,15 +693,27 @@
 
     function atualizarAbaAtiva() {
         const abaVisaoGeral = document.getElementById('visao-geral');
+        const abaRelatorios = document.getElementById('relatorios');
         const abaAvaliacoes = document.getElementById('avaliacoes');
 
-        if (abaVisaoGeral.classList.contains('active')) {
-            atualizarCheckboxesTurmas();
-            atualizarGrafico();
-            atualizarVisaoGeral();
+        if (abaVisaoGeral?.classList.contains('active')) {
+            atualizarPainelPrincipal();
         }
 
-        if (abaAvaliacoes.classList.contains('active')) {
+        if (abaRelatorios?.classList.contains('active')) {
+            atualizarSelectEducandos();
+            atualizarCheckboxesTurmasEvolucao();
+            const subAbaAtiva = document.querySelector('.sub-tab-content.active');
+            if(subAbaAtiva) {
+                if(subAbaAtiva.id === 'relatorio-individual') {
+                    atualizarRelatorioIndividual();
+                } else if(subAbaAtiva.id === 'relatorio-evolucao') {
+                    atualizarRelatorioEvolucao();
+                }
+            }
+        }
+
+        if (abaAvaliacoes?.classList.contains('active')) {
             atualizarListaEducandos();
         }
     }
@@ -690,29 +779,54 @@
                 raciocinio_logico: avaliacaoLocal['Raciocínio Lógico'] || 0
             };
             
-            // Verifica se já existe
-            const { data: existe } = await supabase
-                .from('avaliacoes')
-                .select('id')
-                .eq('educando_id', educandoId)
-                .eq('etapa', etapa)
-                .single();
+            // Busca se já existe avaliação
+            const headers = {
+                'apikey': SUPABASE_KEY,
+                'Authorization': `Bearer ${SUPABASE_KEY}`,
+                'Content-Type': 'application/json',
+                'Prefer': 'return=representation'
+            };
             
-            if (existe) {
+            const response = await fetch(
+                `${SUPABASE_URL}/rest/v1/avaliacoes?educando_id=eq.${educandoId}&etapa=eq.${etapa}`,
+                { headers }
+            );
+            
+            const existentes = await response.json();
+            
+            if (existentes && existentes.length > 0) {
                 // Atualiza
-                const { error } = await supabase
-                    .from('avaliacoes')
-                    .update(avaliacaoData)
-                    .eq('id', existe.id);
+                const idExistente = existentes[0].id;
+                const updateResponse = await fetch(
+                    `${SUPABASE_URL}/rest/v1/avaliacoes?id=eq.${idExistente}`,
+                    {
+                        method: 'PATCH',
+                        headers,
+                        body: JSON.stringify(avaliacaoData)
+                    }
+                );
                 
-                if (error) throw error;
+                if (!updateResponse.ok) {
+                    throw new Error('Erro ao atualizar avaliação');
+                }
+                
+                console.log('✓ Avaliação atualizada');
             } else {
                 // Insere
-                const { error } = await supabase
-                    .from('avaliacoes')
-                    .insert([avaliacaoData]);
+                const insertResponse = await fetch(
+                    `${SUPABASE_URL}/rest/v1/avaliacoes`,
+                    {
+                        method: 'POST',
+                        headers,
+                        body: JSON.stringify(avaliacaoData)
+                    }
+                );
                 
-                if (error) throw error;
+                if (!insertResponse.ok) {
+                    throw new Error('Erro ao inserir avaliação');
+                }
+                
+                console.log('✓ Avaliação inserida');
             }
         } catch (erro) {
             console.error('Erro ao salvar avaliação:', erro);
@@ -1359,115 +1473,8 @@
         }
     });
 
-    function abrirModalExportar() {
-        if(!graficoInstance) {
-            mostrarNotificacao('Aviso', 'Nenhum gráfico para exportar. Configure e visualize um gráfico primeiro.', 'warning');
-            return;
-        }
-        document.getElementById('modalExportar').classList.add('active');
-    }
-
     function fecharModalExportar() {
         document.getElementById('modalExportar').classList.remove('active');
-    }
-
-    function exportarGrafico(formato) {
-        if(!graficoInstance) {
-            mostrarNotificacao('Erro', 'Nenhum gráfico para exportar!', 'error');
-            return;
-        }
-
-        const canvas = document.getElementById('graficoIndicadores');
-        const dataAtual = new Date().toISOString().split('T')[0];
-        const nomeArquivo = `grafico_crescendo_juntos_${dataAtual}`;
-
-        try {
-            if(formato === 'png') {
-                // Exportar como PNG
-                canvas.toBlob(function(blob) {
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = `${nomeArquivo}.png`;
-                    a.click();
-                    URL.revokeObjectURL(url);
-                    fecharModalExportar();
-                    mostrarNotificacao('Exportação Concluída', 'Gráfico exportado como PNG com sucesso!', 'success');
-                });
-            } else if(formato === 'jpg') {
-                // Exportar como JPG com fundo branco
-                const tempCanvas = document.createElement('canvas');
-                tempCanvas.width = canvas.width;
-                tempCanvas.height = canvas.height;
-                const tempCtx = tempCanvas.getContext('2d');
-                
-                // Preenche com branco
-                tempCtx.fillStyle = '#FFFFFF';
-                tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
-                
-                // Desenha o gráfico por cima
-                tempCtx.drawImage(canvas, 0, 0);
-                
-                tempCanvas.toBlob(function(blob) {
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = `${nomeArquivo}.jpg`;
-                    a.click();
-                    URL.revokeObjectURL(url);
-                    fecharModalExportar();
-                    mostrarNotificacao('Exportação Concluída', 'Gráfico exportado como JPG com sucesso!', 'success');
-                }, 'image/jpeg', 0.95);
-            } else if(formato === 'pdf') {
-                // Exportar como PDF
-                const imgData = canvas.toDataURL('image/png');
-                const { jsPDF } = window.jspdf;
-                
-                // Cria PDF em paisagem para melhor visualização
-                const pdf = new jsPDF({
-                    orientation: 'landscape',
-                    unit: 'mm',
-                    format: 'a4'
-                });
-
-                // Dimensões do PDF A4 em paisagem
-                const pdfWidth = pdf.internal.pageSize.getWidth();
-                const pdfHeight = pdf.internal.pageSize.getHeight();
-                
-                // Calcula dimensões mantendo proporção
-                const canvasRatio = canvas.width / canvas.height;
-                let imgWidth = pdfWidth - 20; // margem de 10mm em cada lado
-                let imgHeight = imgWidth / canvasRatio;
-                
-                // Se a altura ultrapassar a página, ajusta
-                if(imgHeight > pdfHeight - 40) {
-                    imgHeight = pdfHeight - 40;
-                    imgWidth = imgHeight * canvasRatio;
-                }
-
-                const x = (pdfWidth - imgWidth) / 2;
-                const y = 20;
-
-                // Adiciona título
-                pdf.setFontSize(16);
-                pdf.text('Crescendo Juntos - Análise de Evolução Pedagógica', pdfWidth / 2, 12, { align: 'center' });
-                
-                // Adiciona o gráfico
-                pdf.addImage(imgData, 'PNG', x, y, imgWidth, imgHeight);
-                
-                // Adiciona data no rodapé
-                pdf.setFontSize(10);
-                pdf.text(`Gerado em: ${new Date().toLocaleDateString('pt-BR')}`, pdfWidth / 2, pdfHeight - 10, { align: 'center' });
-                
-                // Salva o PDF
-                pdf.save(`${nomeArquivo}.pdf`);
-                fecharModalExportar();
-                mostrarNotificacao('Exportação Concluída', 'Gráfico exportado como PDF com sucesso!', 'success');
-            }
-        } catch(erro) {
-            mostrarNotificacao('Erro na Exportação', erro.message, 'error');
-            console.error(erro);
-        }
     }
 
     async function limparTudo() {
@@ -1516,6 +1523,465 @@
             dados.turmas.sort().forEach(t => sel.innerHTML += `<option value="${t}">${t}</option>`);
             sel.value = v;
         });
+    }
+
+    // ===== PAINEL PRINCIPAL =====
+    
+    function atualizarPainelPrincipal() {
+        atualizarTurmasDetalhadas();
+    }
+
+    function atualizarTurmasDetalhadas() {
+        const container = document.getElementById('turmasDetalhadas');
+        if(!container) return;
+        
+        if(dados.turmas.length === 0) {
+            container.innerHTML = '<div class="empty-state">Nenhuma turma cadastrada</div>';
+            return;
+        }
+        
+        container.innerHTML = dados.turmas.sort().map(turma => {
+            const alunosTurma = dados.educandos.filter(e => e.turma === turma);
+            const qtdAlunos = alunosTurma.length;
+            
+            // Calcula média de cada indicador para a turma (etapa Final ou mais recente)
+            const mediasIndicadores = INDICADORES.map(ind => {
+                let soma = 0;
+                let count = 0;
+                
+                alunosTurma.forEach(aluno => {
+                    // Prioriza Final > Processo > Diagnóstica
+                    const nota = dados.avaliacoes[aluno.id]?.['Final']?.[ind] ||
+                                dados.avaliacoes[aluno.id]?.['Processo']?.[ind] ||
+                                dados.avaliacoes[aluno.id]?.['Diagnóstica']?.[ind] || 0;
+                    
+                    if(nota > 0) {
+                        soma += nota;
+                        count++;
+                    }
+                });
+                
+                return {
+                    indicador: ind,
+                    media: count > 0 ? (soma / count).toFixed(1) : '-'
+                };
+            });
+            
+            return `
+                <div class="turma-detail-card">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                        <h4 style="color: #1f2937; margin: 0; font-size: 1.1em;">${turma}</h4>
+                        <span style="background: var(--primary); color: white; padding: 6px 16px; border-radius: 20px; font-size: 0.9em; font-weight: 600;">
+                            ${qtdAlunos} ${qtdAlunos !== 1 ? 'alunos' : 'aluno'}
+                        </span>
+                    </div>
+                    <div style="color: #6b7280; font-size: 0.95em; margin-bottom: 12px; font-weight: 600;">
+                        Médias por Indicador:
+                    </div>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px;">
+                        ${mediasIndicadores.map(m => {
+                            const valor = m.media === '-' ? '-' : parseFloat(m.media);
+                            const cor = valor === '-' ? '#9ca3af' : 
+                                       valor >= 3.5 ? '#10b981' : 
+                                       valor >= 2.5 ? '#f59e0b' : '#ef4444';
+                            
+                            return `
+                                <div style="background: white; padding: 12px; border-radius: 8px; border: 1px solid #e5e7eb; transition: all 0.2s ease;" onmouseover="this.style.borderColor='var(--primary)'; this.style.transform='translateY(-2px)'" onmouseout="this.style.borderColor='#e5e7eb'; this.style.transform='translateY(0)'">
+                                    <div style="font-size: 0.85em; color: #6b7280; margin-bottom: 6px;">${m.indicador}</div>
+                                    <div style="font-size: 1.5em; font-weight: 700; color: ${cor};">${m.media}</div>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+    
+    function atualizarSelectEducandos() {
+        const select = document.getElementById('educandoRelatorio');
+        if(!select) return;
+        
+        const valorAtual = select.value;
+        select.innerHTML = '<option value="">Escolha um educando...</option>';
+        
+        dados.educandos.sort((a, b) => a.nome.localeCompare(b.nome)).forEach(edu => {
+            select.innerHTML += `<option value="${edu.id}">${edu.nome} - ${edu.turma}</option>`;
+        });
+        
+        select.value = valorAtual;
+    }
+
+    function atualizarRelatorioIndividual() {
+        const educandoId = document.getElementById('educandoRelatorio').value;
+        const canvas = document.getElementById('graficoIndividual');
+        
+        if(!canvas) return;
+        
+        if(!educandoId) {
+            const ctx = canvas.getContext('2d');
+            if(graficoIndividualInstance) graficoIndividualInstance.destroy();
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.font = '16px sans-serif';
+            ctx.fillStyle = '#9ca3af';
+            ctx.textAlign = 'center';
+            ctx.fillText('Selecione um educando para visualizar', canvas.width/2, canvas.height/2);
+            return;
+        }
+        
+        const educando = dados.educandos.find(e => e.id === educandoId);
+        if(!educando) return;
+        
+        const etapasSelecionadas = Array.from(document.querySelectorAll('.checkbox-etapa-individual:checked')).map(cb => cb.value);
+        
+        if(etapasSelecionadas.length === 0) {
+            const ctx = canvas.getContext('2d');
+            if(graficoIndividualInstance) graficoIndividualInstance.destroy();
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.font = '16px sans-serif';
+            ctx.fillStyle = '#9ca3af';
+            ctx.textAlign = 'center';
+            ctx.fillText('Selecione ao menos uma etapa', canvas.width/2, canvas.height/2);
+            return;
+        }
+        
+        const datasets = etapasSelecionadas.map(etapa => {
+            const notas = INDICADORES.map(ind => {
+                return (dados.avaliacoes[educandoId] && dados.avaliacoes[educandoId][etapa]) 
+                    ? dados.avaliacoes[educandoId][etapa][ind] || 0 
+                    : 0;
+            });
+            
+            return {
+                label: etapa,
+                data: notas,
+                borderColor: CORES[etapa],
+                backgroundColor: hexToRgba(CORES[etapa], 0.2),
+                fill: true,
+                tension: 0.3
+            };
+        });
+        
+        if(graficoIndividualInstance) graficoIndividualInstance.destroy();
+        
+        const tipo = document.getElementById('tipoGraficoIndividual').value;
+        graficoIndividualInstance = new Chart(canvas.getContext('2d'), {
+            type: tipo,
+            data: { labels: INDICADORES, datasets },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: { beginAtZero: true, max: 4 },
+                    r: { beginAtZero: true, max: 4 }
+                },
+                plugins: {
+                    legend: { display: true, position: 'top' },
+                    title: {
+                        display: true,
+                        text: `${educando.nome} - ${educando.turma}`,
+                        font: { size: 16, weight: 'bold' }
+                    }
+                }
+            }
+        });
+    }
+
+    function atualizarCheckboxesTurmasEvolucao() {
+        const container = document.getElementById('checkboxTurmasEvolucao');
+        if(!container) return;
+        
+        if(dados.turmas.length === 0) {
+            container.innerHTML = '<p style="color: #9ca3af; font-style: italic;">Nenhuma turma cadastrada</p>';
+            return;
+        }
+        
+        container.innerHTML = dados.turmas.sort().map(turma => `
+            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; background: white; padding: 8px 12px; border-radius: 8px; border: 2px solid #e5e7eb;">
+                <input type="checkbox" class="checkbox-turma-evolucao" value="${turma}" onchange="atualizarRelatorioEvolucao()">
+                <span>${turma}</span>
+            </label>
+        `).join('');
+        
+        // Seleciona a primeira turma por padrão
+        if(dados.turmas.length > 0) {
+            const primeiro = container.querySelector('.checkbox-turma-evolucao');
+            if(primeiro) primeiro.checked = true;
+        }
+    }
+
+    function selecionarTodasTurmasEvolucao() {
+        document.querySelectorAll('.checkbox-turma-evolucao').forEach(cb => cb.checked = true);
+        atualizarRelatorioEvolucao();
+    }
+
+    function limparSelecaoTurmasEvolucao() {
+        document.querySelectorAll('.checkbox-turma-evolucao').forEach(cb => cb.checked = false);
+        atualizarRelatorioEvolucao();
+    }
+
+    function atualizarRelatorioEvolucao() {
+        const canvas = document.getElementById('graficoEvolucao');
+        if(!canvas) return;
+        
+        const turmasSelecionadas = Array.from(document.querySelectorAll('.checkbox-turma-evolucao:checked')).map(cb => cb.value);
+        
+        if(turmasSelecionadas.length === 0) {
+            const ctx = canvas.getContext('2d');
+            if(graficoEvolucaoInstance) graficoEvolucaoInstance.destroy();
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.font = '16px sans-serif';
+            ctx.fillStyle = '#9ca3af';
+            ctx.textAlign = 'center';
+            ctx.fillText('Selecione ao menos uma turma', canvas.width/2, canvas.height/2);
+            atualizarResumoEvolucao([]);
+            return;
+        }
+        
+        const comparacao = document.getElementById('etapasComparacao').value;
+        const [etapaInicial, etapaFinal] = 
+            comparacao === 'diag_proc' ? ['Diagnóstica', 'Processo'] :
+            comparacao === 'proc_final' ? ['Processo', 'Final'] :
+            ['Diagnóstica', 'Final'];
+        
+        // Dados para o gráfico
+        const labels = INDICADORES;
+        const datasets = [];
+        const resumoData = [];
+        
+        turmasSelecionadas.forEach((turma, index) => {
+            const alunos = dados.educandos.filter(e => e.turma === turma);
+            const progressoPorIndicador = INDICADORES.map(ind => {
+                let melhoraram = 0;
+                let total = 0;
+                
+                alunos.forEach(aluno => {
+                    const notaInicial = dados.avaliacoes[aluno.id]?.[etapaInicial]?.[ind] || 0;
+                    const notaFinal = dados.avaliacoes[aluno.id]?.[etapaFinal]?.[ind] || 0;
+                    
+                    if(notaInicial > 0 && notaFinal > 0) {
+                        total++;
+                        if(notaFinal > notaInicial) melhoraram++;
+                    }
+                });
+                
+                return total > 0 ? melhoraram : 0;
+            });
+            
+            const cor = CORES_TURMAS[index % CORES_TURMAS.length];
+            datasets.push({
+                label: turma,
+                data: progressoPorIndicador,
+                backgroundColor: cor,
+                borderColor: cor,
+                borderWidth: 2
+            });
+            
+            // Calcula resumo
+            const totalAlunos = alunos.length;
+            const totalProgressos = progressoPorIndicador.reduce((a, b) => a + b, 0);
+            resumoData.push({ turma, totalAlunos, totalProgressos, cor });
+        });
+        
+        if(graficoEvolucaoInstance) graficoEvolucaoInstance.destroy();
+        
+        graficoEvolucaoInstance = new Chart(canvas.getContext('2d'), {
+            type: 'bar',
+            data: { labels, datasets },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: { 
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: 'Nº de alunos que progrediram'
+                        }
+                    }
+                },
+                plugins: {
+                    legend: { display: true, position: 'top' },
+                    title: {
+                        display: true,
+                        text: `Evolução: ${etapaInicial} → ${etapaFinal}`,
+                        font: { size: 16, weight: 'bold' }
+                    }
+                }
+            }
+        });
+        
+        atualizarResumoEvolucao(resumoData);
+    }
+
+    function atualizarResumoEvolucao(dados) {
+        const container = document.getElementById('resumoEvolucao');
+        if(!container) return;
+        
+        if(dados.length === 0) {
+            container.innerHTML = '<p style="color: #9ca3af; text-align: center;">Selecione turmas para ver o resumo</p>';
+            return;
+        }
+        
+        container.innerHTML = dados.map(d => `
+            <div style="background: #f9fafb; padding: 15px; border-radius: 10px; border-left: 4px solid ${d.cor};">
+                <div style="font-weight: 600; color: #1f2937; margin-bottom: 5px;">${d.turma}</div>
+                <div style="color: #6b7280; font-size: 0.9em;">
+                    ${d.totalAlunos} aluno${d.totalAlunos !== 1 ? 's' : ''} na turma
+                </div>
+                <div style="color: #6b7280; font-size: 0.9em;">
+                    ${d.totalProgressos} progresso${d.totalProgressos !== 1 ? 's' : ''} registrado${d.totalProgressos !== 1 ? 's' : ''}
+                </div>
+            </div>
+        `).join('');
+    }
+
+    // ===== EXPORTAÇÃO DE GRÁFICOS DOS RELATÓRIOS =====
+    
+    function exportarGraficoRelatorio(tipo) {
+        let canvas, nomeBase;
+        
+        if(tipo === 'individual') {
+            canvas = document.getElementById('graficoIndividual');
+            const educandoId = document.getElementById('educandoRelatorio').value;
+            if(!educandoId) {
+                mostrarNotificacao('Aviso', 'Selecione um educando para exportar', 'warning');
+                return;
+            }
+            const educando = dados.educandos.find(e => e.id === educandoId);
+            nomeBase = `relatorio_individual_${educando.nome.replace(/\s+/g, '_')}`;
+        } else if(tipo === 'evolucao') {
+            canvas = document.getElementById('graficoEvolucao');
+            const turmas = Array.from(document.querySelectorAll('.checkbox-turma-evolucao:checked')).map(cb => cb.value);
+            if(turmas.length === 0) {
+                mostrarNotificacao('Aviso', 'Selecione ao menos uma turma para exportar', 'warning');
+                return;
+            }
+            nomeBase = `relatorio_evolucao_${turmas.length}_turmas`;
+        }
+        
+        if(!canvas) {
+            mostrarNotificacao('Erro', 'Gráfico não encontrado', 'error');
+            return;
+        }
+        
+        // Abre modal de seleção de formato
+        abrirModalExportarRelatorio(canvas, nomeBase);
+    }
+
+    function abrirModalExportarRelatorio(canvas, nomeBase) {
+        // Cria modal temporário
+        const modal = document.createElement('div');
+        modal.className = 'modal active';
+        modal.innerHTML = `
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>📥 Exportar Relatório</h2>
+                    <span class="modal-close" onclick="this.closest('.modal').remove()">×</span>
+                </div>
+                <p style="color: #6b7280; margin-bottom: 20px;">Escolha o formato para exportar:</p>
+                <div style="display: flex; flex-direction: column; gap: 10px;">
+                    <button class="btn btn-primary" style="width: 100%; justify-content: center;" onclick="exportarCanvasFormato('${nomeBase}', 'png', this)">
+                        🖼️ PNG (Alta Qualidade)
+                    </button>
+                    <button class="btn btn-primary" style="width: 100%; justify-content: center;" onclick="exportarCanvasFormato('${nomeBase}', 'jpg', this)">
+                        📷 JPG (Compacto)
+                    </button>
+                    <button class="btn btn-success" style="width: 100%; justify-content: center;" onclick="exportarCanvasFormato('${nomeBase}', 'pdf', this)">
+                        📄 PDF (Documento)
+                    </button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+        
+        // Fecha ao clicar fora
+        modal.addEventListener('click', (e) => {
+            if(e.target === modal) modal.remove();
+        });
+        
+        // Armazena canvas globalmente para acesso
+        window._tempCanvas = canvas;
+    }
+
+    function exportarCanvasFormato(nomeBase, formato, btn) {
+        const canvas = window._tempCanvas;
+        if(!canvas) return;
+        
+        const dataAtual = new Date().toISOString().split('T')[0];
+        const nomeArquivo = `${nomeBase}_${dataAtual}`;
+        
+        try {
+            if(formato === 'png') {
+                canvas.toBlob(function(blob) {
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `${nomeArquivo}.png`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                    btn.closest('.modal').remove();
+                    mostrarNotificacao('Exportado', 'Relatório exportado como PNG!', 'success');
+                });
+            } else if(formato === 'jpg') {
+                const tempCanvas = document.createElement('canvas');
+                tempCanvas.width = canvas.width;
+                tempCanvas.height = canvas.height;
+                const tempCtx = tempCanvas.getContext('2d');
+                tempCtx.fillStyle = '#FFFFFF';
+                tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+                tempCtx.drawImage(canvas, 0, 0);
+                
+                tempCanvas.toBlob(function(blob) {
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `${nomeArquivo}.jpg`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                    btn.closest('.modal').remove();
+                    mostrarNotificacao('Exportado', 'Relatório exportado como JPG!', 'success');
+                }, 'image/jpeg', 0.95);
+            } else if(formato === 'pdf') {
+                const imgData = canvas.toDataURL('image/png');
+                const { jsPDF } = window.jspdf;
+                
+                const pdf = new jsPDF({
+                    orientation: 'landscape',
+                    unit: 'mm',
+                    format: 'a4'
+                });
+
+                const pdfWidth = pdf.internal.pageSize.getWidth();
+                const pdfHeight = pdf.internal.pageSize.getHeight();
+                const canvasRatio = canvas.width / canvas.height;
+                let imgWidth = pdfWidth - 20;
+                let imgHeight = imgWidth / canvasRatio;
+                
+                if(imgHeight > pdfHeight - 40) {
+                    imgHeight = pdfHeight - 40;
+                    imgWidth = imgHeight * canvasRatio;
+                }
+
+                const x = (pdfWidth - imgWidth) / 2;
+                const y = 20;
+
+                pdf.setFontSize(16);
+                pdf.text('Crescendo Juntos - Relatório', pdfWidth / 2, 12, { align: 'center' });
+                pdf.addImage(imgData, 'PNG', x, y, imgWidth, imgHeight);
+                pdf.setFontSize(10);
+                pdf.text(`Gerado em: ${new Date().toLocaleDateString('pt-BR')}`, pdfWidth / 2, pdfHeight - 10, { align: 'center' });
+                
+                pdf.save(`${nomeArquivo}.pdf`);
+                btn.closest('.modal').remove();
+                mostrarNotificacao('Exportado', 'Relatório exportado como PDF!', 'success');
+            }
+        } catch(erro) {
+            console.error('Erro ao exportar:', erro);
+            mostrarNotificacao('Erro', 'Erro ao exportar: ' + erro.message, 'error');
+        }
+        
+        delete window._tempCanvas;
     }
 </script>
 </body>

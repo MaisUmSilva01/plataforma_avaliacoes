@@ -75,6 +75,10 @@
         .modal-close { cursor: pointer; font-size: 24px; color: #6b7280; }
         .turma-item { display: flex; justify-content: space-between; align-items: center; padding: 12px; background: #f9fafb; border-radius: 8px; margin-bottom: 10px; }
         
+        /* Modal de confirmação tem z-index maior */
+        .confirm-modal { z-index: 10001; }
+        .prompt-modal { z-index: 10001; }
+        
         /* Sistema de Notificações */
         .notification-container { position: fixed; top: 20px; right: 20px; z-index: 10001; display: flex; flex-direction: column; gap: 10px; max-width: 400px; }
         .notification { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); display: flex; align-items: start; gap: 15px; animation: slideIn 0.3s ease; border-left: 4px solid #10b981; }
@@ -199,17 +203,17 @@
                             </div>
                             <div>
                                 <label style="display: block; font-weight: 600; margin-bottom: 10px;">Etapas:</label>
-                                <div style="display: flex; gap: 10px;">
+                                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
                                     <label style="display: flex; align-items: center; gap: 5px; cursor: pointer;">
-                                        <input type="checkbox" class="checkbox-etapa-individual" value="Diagnóstica" checked onchange="atualizarRelatorioIndividual()">
+                                        <input type="checkbox" class="checkbox-etapa-individual" value="Diagnóstica" onchange="atualizarRelatorioIndividual()">
                                         <span>Diagnóstica</span>
                                     </label>
                                     <label style="display: flex; align-items: center; gap: 5px; cursor: pointer;">
-                                        <input type="checkbox" class="checkbox-etapa-individual" value="Processo" checked onchange="atualizarRelatorioIndividual()">
+                                        <input type="checkbox" class="checkbox-etapa-individual" value="Processo" onchange="atualizarRelatorioIndividual()">
                                         <span>Processo</span>
                                     </label>
                                     <label style="display: flex; align-items: center; gap: 5px; cursor: pointer;">
-                                        <input type="checkbox" class="checkbox-etapa-individual" value="Final" checked onchange="atualizarRelatorioIndividual()">
+                                        <input type="checkbox" class="checkbox-etapa-individual" value="Final" onchange="atualizarRelatorioIndividual()">
                                         <span>Final</span>
                                     </label>
                                 </div>
@@ -226,6 +230,17 @@
                     </div>
                     
                     <div class="chart-container"><canvas id="graficoIndividual"></canvas></div>
+                    
+                    <!-- Observações do Educando -->
+                    <div id="observacoesEducando" style="margin-top: 20px; display: none;">
+                        <div style="background: #fffbeb; border: 1px solid #fbbf24; border-radius: 10px; padding: 20px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                                <h4 style="margin: 0; color: #92400e;">📝 Observações</h4>
+                                <button class="btn btn-primary btn-small" onclick="editarObservacoes()">Editar</button>
+                            </div>
+                            <div id="textoObservacoes" style="color: #78350f; white-space: pre-wrap;"></div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -245,15 +260,30 @@
                             </div>
                         </div>
                         
-                        <div style="display: flex; gap: 15px; align-items: center;">
-                            <div>
-                                <label style="display: block; font-weight: 600; margin-bottom: 10px;">Comparar:</label>
-                                <select id="etapasComparacao" onchange="atualizarRelatorioEvolucao()" style="padding: 10px;">
-                                    <option value="diag_proc">Diagnóstica → Processo</option>
-                                    <option value="proc_final">Processo → Final</option>
-                                    <option value="diag_final">Diagnóstica → Final</option>
-                                </select>
+                        <div style="margin-bottom: 15px;">
+                            <label style="display: block; font-weight: 600; margin-bottom: 10px;">Selecione as Etapas:</label>
+                            <div style="display: flex; flex-wrap: wrap; gap: 15px;">
+                                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                    <input type="checkbox" class="checkbox-etapa-evolucao" value="Diagnóstica" onchange="atualizarRelatorioEvolucao()">
+                                    <span>Diagnóstica</span>
+                                </label>
+                                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                    <input type="checkbox" class="checkbox-etapa-evolucao" value="Processo" onchange="atualizarRelatorioEvolucao()">
+                                    <span>Processo</span>
+                                </label>
+                                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                    <input type="checkbox" class="checkbox-etapa-evolucao" value="Final" onchange="atualizarRelatorioEvolucao()">
+                                    <span>Final</span>
+                                </label>
                             </div>
+                        </div>
+                        
+                        <div style="display: flex; gap: 15px; align-items: center; flex-wrap: wrap;">
+                            <select id="tipoGraficoEvolucao" onchange="atualizarRelatorioEvolucao()" style="padding: 10px;">
+                                <option value="bar">Barras</option>
+                                <option value="radar">Radar</option>
+                                <option value="line">Linhas</option>
+                            </select>
                             <button class="btn btn-primary" onclick="selecionarTodasTurmasEvolucao()">Todas as Turmas</button>
                             <button class="btn btn-danger btn-small" onclick="limparSelecaoTurmasEvolucao()">Limpar</button>
                         </div>
@@ -591,27 +621,21 @@
             
             // Carrega educandos
             console.log('→ Buscando educandos...');
-            const { data: educandos, error: erroEducandos } = await supabase
-                .from('educandos')
-                .select('*')
-                .order('nome');
+            const headers = {
+                'apikey': SUPABASE_KEY,
+                'Authorization': `Bearer ${SUPABASE_KEY}`,
+                'Content-Type': 'application/json'
+            };
             
-            if (erroEducandos) {
-                console.error('❌ Erro ao buscar educandos:', erroEducandos);
-                throw erroEducandos;
-            }
+            const [resEducandos, resAvaliacoes] = await Promise.all([
+                fetch(`${SUPABASE_URL}/rest/v1/educandos?select=*&order=nome.asc`, { headers }),
+                fetch(`${SUPABASE_URL}/rest/v1/avaliacoes?select=*`, { headers })
+            ]);
+            
+            const educandos = await resEducandos.json();
+            const avaliacoes = await resAvaliacoes.json();
+            
             console.log(`✓ ${educandos?.length || 0} educandos carregados`);
-            
-            // Carrega avaliações
-            console.log('→ Buscando avaliações...');
-            const { data: avaliacoes, error: erroAvaliacoes } = await supabase
-                .from('avaliacoes')
-                .select('*');
-            
-            if (erroAvaliacoes) {
-                console.error('❌ Erro ao buscar avaliações:', erroAvaliacoes);
-                throw erroAvaliacoes;
-            }
             console.log(`✓ ${avaliacoes?.length || 0} avaliações carregadas`);
             
             // Processa dados
@@ -1345,31 +1369,51 @@
     }
 
     async function remover(id) {
-        const confirmado = await confirmar('Remover Aluno', 'Tem certeza que deseja remover este aluno?', '🗑️');
+        const educando = dados.educandos.find(e => e.id === id);
+        if(!educando) return;
+        
+        const confirmado = await confirmar(
+            'Remover Aluno', 
+            `Tem certeza que deseja remover "${educando.nome}"?\n\nTodas as avaliações deste aluno serão excluídas.`, 
+            '🗑️'
+        );
         
         if(confirmado) {
             try {
-                // Remove avaliações primeiro
-                const { error: erroAval } = await supabase
-                    .from('avaliacoes')
-                    .delete()
-                    .eq('educando_id', id);
+                // Mostra notificação de processamento
+                mostrarNotificacao('Processando', 'Removendo aluno...', 'info');
                 
-                if (erroAval) throw erroAval;
+                // Exclui avaliações e educando em paralelo (mais rápido)
+                const [respostaAval, respostaEdu] = await Promise.all([
+                    fetch(`${SUPABASE_URL}/rest/v1/avaliacoes?educando_id=eq.${id}`, {
+                        method: 'DELETE',
+                        headers: {
+                            'apikey': SUPABASE_KEY,
+                            'Authorization': `Bearer ${SUPABASE_KEY}`
+                        }
+                    }),
+                    fetch(`${SUPABASE_URL}/rest/v1/educandos?id=eq.${id}`, {
+                        method: 'DELETE',
+                        headers: {
+                            'apikey': SUPABASE_KEY,
+                            'Authorization': `Bearer ${SUPABASE_KEY}`
+                        }
+                    })
+                ]);
                 
-                // Remove educando
-                const { error: erroEdu } = await supabase
-                    .from('educandos')
-                    .delete()
-                    .eq('id', id);
+                if(!respostaAval.ok || !respostaEdu.ok) {
+                    throw new Error('Erro ao excluir do banco de dados');
+                }
                 
-                if (erroEdu) throw erroEdu;
-                
+                // Atualiza dados locais imediatamente (sem esperar)
                 dados.educandos = dados.educandos.filter(e => e.id !== id); 
-                delete dados.avaliacoes[id]; 
+                delete dados.avaliacoes[id];
+                
+                // Atualiza interface
                 atualizarListaEducandos();
-                atualizarVisaoGeral();
-                mostrarNotificacao('Aluno Removido', 'Aluno removido com sucesso!', 'success');
+                atualizarPainelPrincipal();
+                
+                mostrarNotificacao('Aluno Removido', `"${educando.nome}" foi removido com sucesso!`, 'success');
             } catch (erro) {
                 console.error('Erro ao remover educando:', erro);
                 mostrarNotificacao('Erro', 'Erro ao remover aluno: ' + erro.message, 'error');
@@ -1396,15 +1440,26 @@
         
         container.innerHTML = dados.turmas.sort().map(turma => {
             const qtdAlunos = dados.educandos.filter(e => e.turma === turma).length;
-            const temAlunos = qtdAlunos > 0;
             
             return `
                 <div class="turma-item">
                     <div>
-                        <strong>${turma}</strong>
-                        <span style="color: #6b7280; font-size: 0.9em; margin-left: 10px;">(${qtdAlunos} aluno${qtdAlunos !== 1 ? 's' : ''})</span>
+                        <strong style="font-size: 1.05em;">${turma}</strong>
+                        <div style="color: #6b7280; font-size: 0.9em; margin-top: 4px;">
+                            ${qtdAlunos} aluno${qtdAlunos !== 1 ? 's' : ''} matriculado${qtdAlunos !== 1 ? 's' : ''}
+                        </div>
                     </div>
-                    ${!temAlunos ? `<button class="btn btn-danger btn-small" onclick="excluirTurma('${turma}')">Excluir</button>` : '<span style="color: #9ca3af; font-size: 0.85em;">Tem alunos</span>'}
+                    <div style="display: flex; gap: 8px;">
+                        ${qtdAlunos > 0 ? `
+                            <button class="btn btn-danger btn-small" onclick="excluirTurmaComAlunos('${turma}', ${qtdAlunos})">
+                                Excluir Tudo
+                            </button>
+                        ` : `
+                            <button class="btn btn-danger btn-small" onclick="excluirTurmaVazia('${turma}')">
+                                Excluir
+                            </button>
+                        `}
+                    </div>
                 </div>
             `;
         }).join('');
@@ -1480,27 +1535,40 @@
     async function limparTudo() {
         const confirmado = await confirmar(
             'Resetar Sistema', 
-            '⚠️ ATENÇÃO: Isso vai apagar TODOS os dados do sistema no servidor!\n\nDeseja continuar?',
+            '⚠️ ATENÇÃO: Isso vai apagar TODOS os dados do sistema no servidor!\n\nTodos os alunos, turmas e avaliações serão perdidos permanentemente.',
             '⚠️'
         );
         
-        if(confirmado) {
+        if(!confirmado) return;
+        
+        // Segunda confirmação
+        const confirmarNovamente = await confirmar(
+            'Confirmar Reset Completo',
+            'Esta é sua última chance!\n\nTem ABSOLUTA CERTEZA que deseja apagar tudo?',
+            '🔴'
+        );
+        
+        if(confirmarNovamente) {
             try {
-                // Deleta todas as avaliações
-                const { error: erroAval } = await supabase
-                    .from('avaliacoes')
-                    .delete()
-                    .neq('id', 0); // Deleta todos
+                mostrarNotificacao('Processando', 'Limpando banco de dados...', 'info');
                 
-                if (erroAval) throw erroAval;
-                
-                // Deleta todos os educandos
-                const { error: erroEdu } = await supabase
-                    .from('educandos')
-                    .delete()
-                    .neq('id', ''); // Deleta todos
-                
-                if (erroEdu) throw erroEdu;
+                // Deleta tudo em paralelo (mais rápido)
+                await Promise.all([
+                    fetch(`${SUPABASE_URL}/rest/v1/avaliacoes?id=neq.0`, {
+                        method: 'DELETE',
+                        headers: {
+                            'apikey': SUPABASE_KEY,
+                            'Authorization': `Bearer ${SUPABASE_KEY}`
+                        }
+                    }),
+                    fetch(`${SUPABASE_URL}/rest/v1/educandos?id=neq.`, {
+                        method: 'DELETE',
+                        headers: {
+                            'apikey': SUPABASE_KEY,
+                            'Authorization': `Bearer ${SUPABASE_KEY}`
+                        }
+                    })
+                ]);
                 
                 sessionStorage.removeItem('projeto_auth');
                 location.reload();
@@ -1618,6 +1686,10 @@
         
         if(!canvas) return;
         
+        // Controla exibição das observações
+        const obsContainer = document.getElementById('observacoesEducando');
+        const obsTexto = document.getElementById('textoObservacoes');
+        
         if(!educandoId) {
             const ctx = canvas.getContext('2d');
             if(graficoIndividualInstance) graficoIndividualInstance.destroy();
@@ -1626,11 +1698,16 @@
             ctx.fillStyle = '#9ca3af';
             ctx.textAlign = 'center';
             ctx.fillText('Selecione um educando para visualizar', canvas.width/2, canvas.height/2);
+            obsContainer.style.display = 'none';
             return;
         }
         
         const educando = dados.educandos.find(e => e.id === educandoId);
         if(!educando) return;
+        
+        // Mostra observações
+        obsContainer.style.display = 'block';
+        obsTexto.textContent = educando.observacoes || 'Nenhuma observação registrada.';
         
         const etapasSelecionadas = Array.from(document.querySelectorAll('.checkbox-etapa-individual:checked')).map(cb => cb.value);
         
@@ -1687,6 +1764,49 @@
         });
     }
 
+    async function editarObservacoes() {
+        const educandoId = document.getElementById('educandoRelatorio').value;
+        if(!educandoId) return;
+        
+        const educando = dados.educandos.find(e => e.id === educandoId);
+        if(!educando) return;
+        
+        const novasObs = await perguntar(
+            'Editar Observações',
+            `Observações sobre ${educando.nome}:`,
+            educando.observacoes || 'Digite as observações aqui...'
+        );
+        
+        if(novasObs !== null) {
+            try {
+                // Atualiza no banco
+                const response = await fetch(
+                    `${SUPABASE_URL}/rest/v1/educandos?id=eq.${educandoId}`,
+                    {
+                        method: 'PATCH',
+                        headers: {
+                            'apikey': SUPABASE_KEY,
+                            'Authorization': `Bearer ${SUPABASE_KEY}`,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ observacoes: novasObs })
+                    }
+                );
+                
+                if(!response.ok) throw new Error('Erro ao salvar observações');
+                
+                // Atualiza local
+                educando.observacoes = novasObs;
+                document.getElementById('textoObservacoes').textContent = novasObs || 'Nenhuma observação registrada.';
+                
+                mostrarNotificacao('Salvo', 'Observações atualizadas com sucesso!', 'success');
+            } catch(erro) {
+                console.error('Erro ao salvar observações:', erro);
+                mostrarNotificacao('Erro', 'Erro ao salvar observações: ' + erro.message, 'error');
+            }
+        }
+    }
+
     function atualizarCheckboxesTurmasEvolucao() {
         const container = document.getElementById('checkboxTurmasEvolucao');
         if(!container) return;
@@ -1725,6 +1845,7 @@
         if(!canvas) return;
         
         const turmasSelecionadas = Array.from(document.querySelectorAll('.checkbox-turma-evolucao:checked')).map(cb => cb.value);
+        const etapasSelecionadas = Array.from(document.querySelectorAll('.checkbox-etapa-evolucao:checked')).map(cb => cb.value);
         
         if(turmasSelecionadas.length === 0) {
             const ctx = canvas.getContext('2d');
@@ -1738,55 +1859,80 @@
             return;
         }
         
-        const comparacao = document.getElementById('etapasComparacao').value;
-        const [etapaInicial, etapaFinal] = 
-            comparacao === 'diag_proc' ? ['Diagnóstica', 'Processo'] :
-            comparacao === 'proc_final' ? ['Processo', 'Final'] :
-            ['Diagnóstica', 'Final'];
+        if(etapasSelecionadas.length === 0) {
+            const ctx = canvas.getContext('2d');
+            if(graficoEvolucaoInstance) graficoEvolucaoInstance.destroy();
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.font = '16px sans-serif';
+            ctx.fillStyle = '#9ca3af';
+            ctx.textAlign = 'center';
+            ctx.fillText('Selecione ao menos uma etapa', canvas.width/2, canvas.height/2);
+            atualizarResumoEvolucao([]);
+            return;
+        }
         
-        // Dados para o gráfico
         const labels = INDICADORES;
         const datasets = [];
         const resumoData = [];
+        let corIndex = 0;
         
-        turmasSelecionadas.forEach((turma, index) => {
-            const alunos = dados.educandos.filter(e => e.turma === turma);
-            const progressoPorIndicador = INDICADORES.map(ind => {
-                let melhoraram = 0;
-                let total = 0;
-                
-                alunos.forEach(aluno => {
-                    const notaInicial = dados.avaliacoes[aluno.id]?.[etapaInicial]?.[ind] || 0;
-                    const notaFinal = dados.avaliacoes[aluno.id]?.[etapaFinal]?.[ind] || 0;
+        turmasSelecionadas.forEach(turma => {
+            etapasSelecionadas.forEach(etapa => {
+                const alunos = dados.educandos.filter(e => e.turma === turma);
+                const mediasPorIndicador = INDICADORES.map(ind => {
+                    let soma = 0;
+                    let count = 0;
                     
-                    if(notaInicial > 0 && notaFinal > 0) {
-                        total++;
-                        if(notaFinal > notaInicial) melhoraram++;
-                    }
+                    alunos.forEach(aluno => {
+                        const nota = dados.avaliacoes[aluno.id]?.[etapa]?.[ind] || 0;
+                        if(nota > 0) {
+                            soma += nota;
+                            count++;
+                        }
+                    });
+                    
+                    return count > 0 ? (soma / count).toFixed(2) : 0;
                 });
                 
-                return total > 0 ? melhoraram : 0;
+                const cor = CORES_TURMAS[corIndex % CORES_TURMAS.length];
+                datasets.push({
+                    label: `${turma} - ${etapa}`,
+                    data: mediasPorIndicador,
+                    backgroundColor: cor,
+                    borderColor: cor,
+                    borderWidth: 2,
+                    tension: 0.3,
+                    fill: true
+                });
+                corIndex++;
             });
             
-            const cor = CORES_TURMAS[index % CORES_TURMAS.length];
-            datasets.push({
-                label: turma,
-                data: progressoPorIndicador,
-                backgroundColor: cor,
-                borderColor: cor,
-                borderWidth: 2
+            // Calcula resumo da turma
+            const totalAlunos = dados.educandos.filter(e => e.turma === turma).length;
+            const avaliacoesRealizadas = etapasSelecionadas.map(et => {
+                const alunos = dados.educandos.filter(e => e.turma === turma);
+                let count = 0;
+                alunos.forEach(aluno => {
+                    INDICADORES.forEach(ind => {
+                        if(dados.avaliacoes[aluno.id]?.[et]?.[ind] > 0) count++;
+                    });
+                });
+                return { etapa: et, total: count };
             });
             
-            // Calcula resumo
-            const totalAlunos = alunos.length;
-            const totalProgressos = progressoPorIndicador.reduce((a, b) => a + b, 0);
-            resumoData.push({ turma, totalAlunos, totalProgressos, cor });
+            resumoData.push({ 
+                turma, 
+                totalAlunos, 
+                avaliacoes: avaliacoesRealizadas,
+                cor: CORES_TURMAS[(corIndex - etapasSelecionadas.length) % CORES_TURMAS.length]
+            });
         });
         
         if(graficoEvolucaoInstance) graficoEvolucaoInstance.destroy();
         
+        const tipo = document.getElementById('tipoGraficoEvolucao')?.value || 'bar';
         graficoEvolucaoInstance = new Chart(canvas.getContext('2d'), {
-            type: 'bar',
+            type: tipo,
             data: { labels, datasets },
             options: {
                 responsive: true,
@@ -1794,17 +1940,16 @@
                 scales: {
                     y: { 
                         beginAtZero: true,
-                        title: {
-                            display: true,
-                            text: 'Nº de alunos que progrediram'
-                        }
-                    }
+                        max: 4,
+                        title: { display: true, text: 'Média das Avaliações' }
+                    },
+                    r: { beginAtZero: true, max: 4 }
                 },
                 plugins: {
                     legend: { display: true, position: 'top' },
                     title: {
                         display: true,
-                        text: `Evolução: ${etapaInicial} → ${etapaFinal}`,
+                        text: 'Desempenho Médio por Turma e Etapa',
                         font: { size: 16, weight: 'bold' }
                     }
                 }
@@ -1819,21 +1964,25 @@
         if(!container) return;
         
         if(dados.length === 0) {
-            container.innerHTML = '<p style="color: #9ca3af; text-align: center;">Selecione turmas para ver o resumo</p>';
+            container.innerHTML = '<p style="color: #9ca3af; text-align: center;">Selecione turmas e etapas para ver o resumo</p>';
             return;
         }
         
-        container.innerHTML = dados.map(d => `
-            <div style="background: #f9fafb; padding: 15px; border-radius: 10px; border-left: 4px solid ${d.cor};">
-                <div style="font-weight: 600; color: #1f2937; margin-bottom: 5px;">${d.turma}</div>
-                <div style="color: #6b7280; font-size: 0.9em;">
-                    ${d.totalAlunos} aluno${d.totalAlunos !== 1 ? 's' : ''} na turma
+        container.innerHTML = dados.map(d => {
+            const avalInfo = d.avaliacoes.map(a => `${a.etapa}: ${a.total} nota${a.total !== 1 ? 's' : ''}`).join('<br>');
+            
+            return `
+                <div style="background: #f9fafb; padding: 15px; border-radius: 10px; border-left: 4px solid ${d.cor};">
+                    <div style="font-weight: 600; color: #1f2937; margin-bottom: 8px;">${d.turma}</div>
+                    <div style="color: #6b7280; font-size: 0.9em; margin-bottom: 5px;">
+                        👥 ${d.totalAlunos} aluno${d.totalAlunos !== 1 ? 's' : ''}
+                    </div>
+                    <div style="color: #6b7280; font-size: 0.85em;">
+                        ${avalInfo}
+                    </div>
                 </div>
-                <div style="color: #6b7280; font-size: 0.9em;">
-                    ${d.totalProgressos} progresso${d.totalProgressos !== 1 ? 's' : ''} registrado${d.totalProgressos !== 1 ? 's' : ''}
-                </div>
-            </div>
-        `).join('');
+            `;
+        }).join('');
     }
 
     // ===== EXPORTAÇÃO DE GRÁFICOS DOS RELATÓRIOS =====

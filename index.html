@@ -94,6 +94,8 @@
         @keyframes slideIn { from { transform: translateX(400px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
         
         /* Modal de Confirmação */
+        .turma-detail-card { transition: box-shadow 0.2s, transform 0.2s; }
+        .turma-detail-card:hover { box-shadow: 0 6px 20px rgba(249,115,22,0.25); transform: translateY(-2px); border: 1.5px solid var(--primary); }
         .confirm-modal .modal-content { max-width: 450px; text-align: center; }
         .confirm-buttons { display: flex; gap: 10px; margin-top: 20px; }
         .confirm-buttons button { flex: 1; }
@@ -194,13 +196,22 @@
                     </div>
                     
                     <div style="background: #f9fafb; padding: 20px; border-radius: 10px; margin-bottom: 20px;">
-                        <div style="display: flex; gap: 15px; align-items: center; flex-wrap: wrap;">
-                            <div style="flex: 1; min-width: 200px;">
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 15px;">
+                            <div>
+                                <label style="display: block; font-weight: 600; margin-bottom: 10px;">Filtrar por Turma:</label>
+                                <select id="filtroTurmaIndividual" onchange="atualizarListaEducandosFiltrada()" style="width: 100%; padding: 10px;">
+                                    <option value="">Todas as turmas</option>
+                                </select>
+                            </div>
+                            <div>
                                 <label style="display: block; font-weight: 600; margin-bottom: 10px;">Selecione o Educando:</label>
                                 <select id="educandoRelatorio" onchange="atualizarRelatorioIndividual()" style="width: 100%; padding: 10px;">
                                     <option value="">Escolha um educando...</option>
                                 </select>
                             </div>
+                        </div>
+                        
+                        <div style="display: flex; gap: 15px; align-items: center; flex-wrap: wrap;">
                             <div>
                                 <label style="display: block; font-weight: 600; margin-bottom: 10px;">Etapas:</label>
                                 <div style="display: flex; gap: 10px; flex-wrap: wrap;">
@@ -219,7 +230,7 @@
                                 </div>
                             </div>
                             <div>
-                                <label style="display: block; font-weight: 600; margin-bottom: 10px;">Tipo:</label>
+                                <label style="display: block; font-weight: 600; margin-bottom: 10px;">Tipo de Gráfico:</label>
                                 <select id="tipoGraficoIndividual" onchange="atualizarRelatorioIndividual()" style="padding: 10px;">
                                     <option value="bar">Barras</option>
                                     <option value="radar">Radar</option>
@@ -725,6 +736,7 @@
         }
 
         if (abaRelatorios?.classList.contains('active')) {
+            atualizarFiltroTurmaIndividual();
             atualizarSelectEducandos();
             atualizarCheckboxesTurmasEvolucao();
             const subAbaAtiva = document.querySelector('.sub-tab-content.active');
@@ -772,6 +784,15 @@
                             ${INDICADORES.map(ind => `
                                 <tr><td>${ind}</td>${ETAPAS.map(et => `<td><select onchange="salvarNota('${edu.id}','${et}','${ind}',this.value)"><option value="0">-</option>${[1,2,3,4].map(n => `<option value="${n}" ${(dados.avaliacoes[edu.id] && dados.avaliacoes[edu.id][et] && dados.avaliacoes[edu.id][et][ind] == n) ? 'selected' : ''}>${n}</option>`).join('')}</select></td>`).join('')}</tr>
                             `).join('')}
+                            <tr style="background: #fff7ed; font-weight: 700; border-top: 2px solid var(--primary);">
+                                <td style="color: #92400e;">⊘ Média da Avaliação</td>
+                                ${ETAPAS.map(et => {
+                                    const notas = INDICADORES.map(ind => (dados.avaliacoes[edu.id]?.[et]?.[ind]) || 0).filter(n => n > 0);
+                                    const media = notas.length > 0 ? (notas.reduce((a,b)=>a+b,0)/notas.length).toFixed(2) : '-';
+                                    const cor = media === '-' ? '#9ca3af' : parseFloat(media) >= 3.5 ? '#10b981' : parseFloat(media) >= 2.5 ? '#f59e0b' : '#ef4444';
+                                    return `<td style="color: ${cor}; font-size: 1.05em;">${media}</td>`;
+                                }).join('')}
+                            </tr>
                         </tbody>
                     </table>
                 </div>
@@ -1636,12 +1657,15 @@
             });
             
             return `
-                <div class="turma-detail-card">
+                <div class="turma-detail-card" style="cursor: pointer;" onclick="navegarParaTurma('${turma}')" title="Clique para ver os educandos desta turma">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
                         <h4 style="color: #1f2937; margin: 0; font-size: 1.1em;">${turma}</h4>
-                        <span style="background: var(--primary); color: white; padding: 6px 16px; border-radius: 20px; font-size: 0.9em; font-weight: 600;">
-                            ${qtdAlunos} ${qtdAlunos !== 1 ? 'alunos' : 'aluno'}
-                        </span>
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                            <span style="background: #f3f4f6; color: #6b7280; padding: 4px 10px; border-radius: 20px; font-size: 0.8em;">👆 Ver educandos</span>
+                            <span style="background: var(--primary); color: white; padding: 6px 16px; border-radius: 20px; font-size: 0.9em; font-weight: 600;">
+                                ${qtdAlunos} ${qtdAlunos !== 1 ? 'alunos' : 'aluno'}
+                            </span>
+                        </div>
                     </div>
                     <div style="color: #6b7280; font-size: 0.95em; margin-bottom: 12px; font-weight: 600;">
                         Médias por Indicador:
@@ -1666,18 +1690,65 @@
         }).join('');
     }
     
-    function atualizarSelectEducandos() {
+    function navegarParaTurma(turma) {
+        // Ativa a aba Avaliações
+        const tabBtns = document.querySelectorAll('.tab-btn');
+        tabBtns.forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        
+        document.getElementById('avaliacoes').classList.add('active');
+        // Marca o botão correto (3º tab-btn principal)
+        const mainTabBtns = document.querySelectorAll('nav.tabs .tab-btn');
+        mainTabBtns.forEach(b => {
+            b.classList.remove('active');
+            if(b.textContent.trim() === 'Avaliações') b.classList.add('active');
+        });
+        
+        // Define a turma no filtro e atualiza lista
+        const sel = document.getElementById('turmaAtivaAvaliacao');
+        if(sel) {
+            sel.value = turma;
+            atualizarListaEducandos();
+        }
+    }
+    
+    function atualizarFiltroTurmaIndividual() {
+        const sel = document.getElementById('filtroTurmaIndividual');
+        if(!sel) return;
+        const v = sel.value;
+        sel.innerHTML = '<option value="">Todas as turmas</option>';
+        dados.turmas.sort().forEach(t => sel.innerHTML += `<option value="${t}">${t}</option>`);
+        sel.value = v;
+    }
+
+    function atualizarListaEducandosFiltrada() {
+        const turmaSel = document.getElementById('filtroTurmaIndividual').value;
         const select = document.getElementById('educandoRelatorio');
         if(!select) return;
         
         const valorAtual = select.value;
         select.innerHTML = '<option value="">Escolha um educando...</option>';
         
-        dados.educandos.sort((a, b) => a.nome.localeCompare(b.nome)).forEach(edu => {
-            select.innerHTML += `<option value="${edu.id}">${edu.nome} - ${edu.turma}</option>`;
+        const lista = turmaSel
+            ? dados.educandos.filter(e => e.turma === turmaSel)
+            : dados.educandos;
+        
+        lista.sort((a, b) => a.nome.localeCompare(b.nome)).forEach(edu => {
+            select.innerHTML += `<option value="${edu.id}">${edu.nome}${!turmaSel ? ' - ' + edu.turma : ''}</option>`;
         });
         
-        select.value = valorAtual;
+        // Mantém seleção anterior apenas se ainda válida
+        if(lista.find(e => e.id === valorAtual)) {
+            select.value = valorAtual;
+        } else {
+            select.value = '';
+            atualizarRelatorioIndividual();
+        }
+    }
+
+    function atualizarSelectEducandos() {
+        atualizarFiltroTurmaIndividual();
+        atualizarListaEducandosFiltrada();
     }
 
     function atualizarRelatorioIndividual() {
